@@ -835,7 +835,6 @@ func (h *AdminHandler) handleGetDetailedUsersInfo(c telebot.Context) error {
 
 // formatDetailedUsersReport formats a detailed users information report
 func (h *AdminHandler) formatDetailedUsersReport(inbounds []models.Inbound) string {
-	// Aggregate user data by subscription ID from all inbounds
 	subscriptionSummary := h.aggregateUserDataBySubID(inbounds)
 
 	if len(subscriptionSummary) == 0 {
@@ -843,37 +842,29 @@ func (h *AdminHandler) formatDetailedUsersReport(inbounds []models.Inbound) stri
 	}
 
 	var sb strings.Builder
-	sb.WriteString("<b>Detailed Subscription Information:</b>\n")
-	sb.WriteString("<pre>\n")
+	sb.WriteString("<b>📊 Detailed Subscription Information</b>\n\n")
 
-	for subID, data := range subscriptionSummary {
-		// Convert bytes to GB
+	for _, data := range subscriptionSummary {
 		upGB := float64(data.TotalUp) / (1024 * 1024 * 1024)
 		downGB := float64(data.TotalDown) / (1024 * 1024 * 1024)
 
-		// Format expiry time
 		expiryTime := "Never"
 		if data.ExpiryTime > 0 {
 			expiryTime = time.Unix(data.ExpiryTime/1000, 0).Format("2006-01-02 15:04")
 		}
 
-		// Status text
-		statusText := "🔴 Disabled"
+		statusText := "🔴"
 		if data.Enable {
-			statusText = "🟢 Active"
+			statusText = "🟢"
 		}
 
-		sb.WriteString(fmt.Sprintf("🔑 Subscription: %s\n", subID))
-		sb.WriteString(fmt.Sprintf("📧 Emails: %s\n", strings.Join(data.Emails, ", ")))
-		sb.WriteString(fmt.Sprintf("📊 Status: %s\n", statusText))
-		sb.WriteString(fmt.Sprintf("⬆️ Upload: %.2f GB\n", upGB))
-		sb.WriteString(fmt.Sprintf("⬇️ Download: %.2f GB\n", downGB))
-		sb.WriteString(fmt.Sprintf("📍 Inbounds: %s\n", strings.Join(data.InboundNames, ", ")))
-		sb.WriteString(fmt.Sprintf("⏰ Expires: %s\n", expiryTime))
-		sb.WriteString("────────────────\n")
+		sb.WriteString(fmt.Sprintf("%s <b>%s</b>\n", statusText, strings.Join(data.Emails, ", ")))
+		sb.WriteString(fmt.Sprintf("├ ⬆️ %.2f GB\n", upGB))
+		sb.WriteString(fmt.Sprintf("├ ⬇️ %.2f GB\n", downGB))
+		sb.WriteString(fmt.Sprintf("├ 📍 <i>%s</i>\n", strings.Join(data.InboundNames, ", ")))
+		sb.WriteString(fmt.Sprintf("└ ⏰ %s\n\n", expiryTime))
 	}
 
-	sb.WriteString("</pre>")
 	return sb.String()
 }
 
