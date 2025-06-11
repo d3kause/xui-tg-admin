@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strconv"
 	"strings"
@@ -843,18 +844,18 @@ func (h *AdminHandler) handleGetDetailedUsersInfo(c telebot.Context) error {
 
 // formatDetailedUsersReport formats a detailed users information report
 func (h *AdminHandler) formatDetailedUsersReport(inbounds []models.Inbound) string {
-	// Aggregate user data from all inbounds
-	userSummary := h.aggregateUserData(inbounds)
+	// Aggregate user data by subscription ID from all inbounds
+	subscriptionSummary := h.aggregateUserDataBySubID(inbounds)
 
-	if len(userSummary) == 0 {
-		return "No active users found."
+	if len(subscriptionSummary) == 0 {
+		return "No active subscriptions found."
 	}
 
 	var sb strings.Builder
-	sb.WriteString("<b>Detailed Users Information:</b>\n")
+	sb.WriteString("<b>Detailed Subscription Information:</b>\n")
 	sb.WriteString("<pre>\n")
 
-	for email, data := range userSummary {
+	for subID, data := range subscriptionSummary {
 		// Convert bytes to GB
 		upGB := float64(data.TotalUp) / (1024 * 1024 * 1024)
 		downGB := float64(data.TotalDown) / (1024 * 1024 * 1024)
@@ -871,7 +872,8 @@ func (h *AdminHandler) formatDetailedUsersReport(inbounds []models.Inbound) stri
 			statusText = "🟢 Active"
 		}
 
-		sb.WriteString(fmt.Sprintf("📧 Email: %s\n", email))
+		sb.WriteString(fmt.Sprintf("🔑 Subscription: %s\n", subID))
+		sb.WriteString(fmt.Sprintf("📧 Emails: %s\n", strings.Join(data.Emails, ", ")))
 		sb.WriteString(fmt.Sprintf("📊 Status: %s\n", statusText))
 		sb.WriteString(fmt.Sprintf("⬆️ Upload: %.2f GB\n", upGB))
 		sb.WriteString(fmt.Sprintf("⬇️ Download: %.2f GB\n", downGB))
@@ -884,45 +886,57 @@ func (h *AdminHandler) formatDetailedUsersReport(inbounds []models.Inbound) stri
 	return sb.String()
 }
 
-// UserSummary represents aggregated user data
-type UserSummary struct {
+// SubscriptionSummary represents aggregated subscription data
+type SubscriptionSummary struct {
 	TotalUp      int64
 	TotalDown    int64
 	Enable       bool
 	ExpiryTime   int64
 	InboundNames []string
+	Emails       []string
 }
 
-// aggregateUserData aggregates user data from all inbounds
-func (h *AdminHandler) aggregateUserData(inbounds []models.Inbound) map[string]*UserSummary {
-	userSummary := make(map[string]*UserSummary)
+// aggregateUserDataBySubID aggregates user data by subscription ID from all inbounds
+func (h *AdminHandler) aggregateUserDataBySubID(inbounds []models.Inbound) map[string]*SubscriptionSummary {
+	subscriptionSummary := make(map[string]*SubscriptionSummary)
+
+	// First, create email to subID mapping
+	emailToSubID := h.createEmailToSubIDMapping(inbounds)
 
 	for _, inbound := range inbounds {
-		for _, client := range inbound.ClientStats {
-			if userSummary[client.Email] == nil {
-				userSummary[client.Email] = &UserSummary{
+		for _, clientStat := range inbound.ClientStats {
+			// Get subID for this email
+			subID, exists := emailToSubID[clientStat.Email]
+			if !exists {
+				// If no subID found, skip this client
+				continue
+			}
+
+			if subscriptionSummary[subID] == nil {
+				subscriptionSummary[subID] = &SubscriptionSummary{
 					TotalUp:      0,
 					TotalDown:    0,
-					Enable:       client.Enable,
-					ExpiryTime:   client.ExpiryTime,
+					Enable:       clientStat.Enable,
+					ExpiryTime:   clientStat.ExpiryTime,
 					InboundNames: []string{},
+					Emails:       []string{},
 				}
 			}
 
-			summary := userSummary[client.Email]
+			summary := subscriptionSummary[subID]
 
 			// Aggregate traffic data
-			summary.TotalUp += client.Up
-			summary.TotalDown += client.Down
+			summary.TotalUp += clientStat.Up
+			summary.TotalDown += clientStat.Down
 
-			// Keep enabled status if any inbound is enabled
-			if client.Enable {
+			// Keep enabled status if any client is enabled
+			if clientStat.Enable {
 				summary.Enable = true
 			}
 
 			// Use the latest expiry time
-			if client.ExpiryTime > summary.ExpiryTime {
-				summary.ExpiryTime = client.ExpiryTime
+			if clientStat.ExpiryTime > summary.ExpiryTime {
+				summary.ExpiryTime = clientStat.ExpiryTime
 			}
 
 			// Add inbound name if not already present
@@ -936,8 +950,45 @@ func (h *AdminHandler) aggregateUserData(inbounds []models.Inbound) map[string]*
 			if !inboundFound {
 				summary.InboundNames = append(summary.InboundNames, inbound.Remark)
 			}
+
+			// Add email if not already present
+			emailFound := false
+			for _, email := range summary.Emails {
+				if email == clientStat.Email {
+					emailFound = true
+					break
+				}
+			}
+			if !emailFound {
+				summary.Emails = append(summary.Emails, clientStat.Email)
+			}
 		}
 	}
 
-	return userSummary
+	return subscriptionSummary
+}
+
+// createEmailToSubIDMapping creates a mapping of email to subscription ID by parsing inbound settings
+func (h *AdminHandler) createEmailToSubIDMapping(inbounds []models.Inbound) map[string]string {
+	emailToSubID := make(map[string]string)
+
+	for _, inbound := range inbounds {
+		if inbound.Settings == "" {
+			continue
+		}
+
+		var settings models.InboundSettings
+		if err := json.Unmarshal([]byte(inbound.Settings), &settings); err != nil {
+			h.logger.Errorf("Failed to parse inbound settings for inbound %d: %v", inbound.ID, err)
+			continue
+		}
+
+		for _, client := range settings.Clients {
+			if client.SubID != "" {
+				emailToSubID[client.Email] = client.SubID
+			}
+		}
+	}
+
+	return emailToSubID
 }
