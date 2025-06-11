@@ -58,17 +58,6 @@ func (s *UserStateService) ClearState(userID int64) error {
 	return nil
 }
 
-// WithSelectedServer updates a user's selected server
-func (s *UserStateService) WithSelectedServer(userID int64, server string) error {
-	state, err := s.GetState(userID)
-	if err != nil {
-		return err
-	}
-
-	state.SelectedServer = &server
-	return s.SetState(userID, *state)
-}
-
 // WithConversationState updates a user's conversation state
 func (s *UserStateService) WithConversationState(userID int64, conversationState models.ConversationState) error {
 	state, err := s.GetState(userID)

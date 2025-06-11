@@ -91,7 +91,6 @@ func (h *AdminHandler) initializeCommands() {
 		"Online Members":      h.handleGetOnlineMembers,
 		"Network Usage":       h.handleGetUsersNetworkUsage,
 		"Reset Network Usage": h.handleResetUsersNetworkUsage,
-		"Change Server":       h.handleChangeServer,
 		"Return to Main Menu": h.handleStart,
 		"Cancel":              h.handleStart,
 	}
@@ -131,10 +130,6 @@ func (h *AdminHandler) handleStart(c telebot.Context) error {
 
 // handleAddMember handles the Add Member command
 func (h *AdminHandler) handleAddMember(c telebot.Context) error {
-	// Validate server selection
-	if err := h.validateServerSelection(c.Sender().ID); err != nil {
-		return h.handleSelectServer(c)
-	}
 
 	// Set state to awaiting username
 	err := h.stateService.WithConversationState(c.Sender().ID, models.AwaitingInputUserName)
@@ -150,10 +145,6 @@ func (h *AdminHandler) handleAddMember(c telebot.Context) error {
 
 // handleEditMember handles the Edit Member command
 func (h *AdminHandler) handleEditMember(c telebot.Context) error {
-	// Validate server selection
-	if err := h.validateServerSelection(c.Sender().ID); err != nil {
-		return h.handleSelectServer(c)
-	}
 
 	// Get user state
 	state, err := h.stateService.GetState(c.Sender().ID)
@@ -200,10 +191,6 @@ func (h *AdminHandler) handleEditMember(c telebot.Context) error {
 
 // handleDeleteMember handles the Delete Member command
 func (h *AdminHandler) handleDeleteMember(c telebot.Context) error {
-	// Validate server selection
-	if err := h.validateServerSelection(c.Sender().ID); err != nil {
-		return h.handleSelectServer(c)
-	}
 
 	// Get user state
 	state, err := h.stateService.GetState(c.Sender().ID)
@@ -213,7 +200,7 @@ func (h *AdminHandler) handleDeleteMember(c telebot.Context) error {
 	}
 
 	// Get all members
-	members, err := h.xrayService.GetAllMembers(context.Background(), *state.SelectedServer)
+	members, err := h.xrayService.GetAllMembers(context.Background())
 	if err != nil {
 		h.logger.Errorf("Failed to get members: %v", err)
 		return h.sendTextMessage(c, fmt.Sprintf("Failed to get members: %v", err), nil)
@@ -250,10 +237,6 @@ func (h *AdminHandler) handleDeleteMember(c telebot.Context) error {
 
 // handleGetOnlineMembers handles the Online Members command
 func (h *AdminHandler) handleGetOnlineMembers(c telebot.Context) error {
-	// Validate server selection
-	if err := h.validateServerSelection(c.Sender().ID); err != nil {
-		return h.handleSelectServer(c)
-	}
 
 	// Get user state
 	state, err := h.stateService.GetState(c.Sender().ID)
@@ -263,7 +246,7 @@ func (h *AdminHandler) handleGetOnlineMembers(c telebot.Context) error {
 	}
 
 	// Get online users
-	onlineUsers, err := h.xrayService.GetOnlineUsers(context.Background(), *state.SelectedServer)
+	onlineUsers, err := h.xrayService.GetOnlineUsers(context.Background())
 	if err != nil {
 		h.logger.Errorf("Failed to get online users: %v", err)
 		return h.sendTextMessage(c, fmt.Sprintf("Failed to get online users: %v", err), nil)
@@ -285,10 +268,6 @@ func (h *AdminHandler) handleGetOnlineMembers(c telebot.Context) error {
 
 // handleGetUsersNetworkUsage handles the Network Usage command
 func (h *AdminHandler) handleGetUsersNetworkUsage(c telebot.Context) error {
-	// Validate server selection
-	if err := h.validateServerSelection(c.Sender().ID); err != nil {
-		return h.handleSelectServer(c)
-	}
 
 	// Get user state
 	state, err := h.stateService.GetState(c.Sender().ID)
@@ -342,10 +321,6 @@ func (h *AdminHandler) handleGetUsersNetworkUsage(c telebot.Context) error {
 
 // handleResetUsersNetworkUsage handles the Reset Network Usage command
 func (h *AdminHandler) handleResetUsersNetworkUsage(c telebot.Context) error {
-	// Validate server selection
-	if err := h.validateServerSelection(c.Sender().ID); err != nil {
-		return h.handleSelectServer(c)
-	}
 
 	// Get user state
 	state, err := h.stateService.GetState(c.Sender().ID)
@@ -762,7 +737,7 @@ func (h *AdminHandler) processConfirmReset(c telebot.Context) error {
 	}
 
 	// Get inbounds
-	inbounds, err := h.xrayService.GetInbounds(context.Background(), *state.SelectedServer)
+	inbounds, err := h.xrayService.GetInbounds(context.Background())
 	if err != nil {
 		h.logger.Errorf("Failed to get inbounds: %v", err)
 		return h.sendTextMessage(c, fmt.Sprintf("Failed to get inbounds: %v", err), nil)

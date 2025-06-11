@@ -6,8 +6,6 @@ type ConversationState int
 const (
 	// Default is the initial state
 	Default ConversationState = iota
-	// AwaitingSelectServer is the state when the user is selecting a server
-	AwaitingSelectServer
 	// AwaitingInputUserName is the state when the user is inputting a username
 	AwaitingInputUserName
 	// AwaitingDuration is the state when the user is inputting a duration
