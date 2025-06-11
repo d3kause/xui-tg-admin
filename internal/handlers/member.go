@@ -46,20 +46,20 @@ func (h *MemberHandler) Handle(ctx context.Context, c telebot.Context) error {
 	userID := c.Sender().ID
 
 	// Get user state
-	state, err := h.stateService.GetState(userID)
+	userState, err := h.stateService.GetState(userID)
 	if err != nil {
 		h.logger.Errorf("Failed to get user state: %v", err)
 		return err
 	}
 
 	// Handle based on state
-	switch state.State {
+	switch userState.State {
 	case models.Default:
 		return h.handleDefaultState(c)
-	case models.AwaitingSelectServer:
+	case models.AwaitSelectUserName:
 		return h.HandleSelectServer(c)
 	default:
-		h.logger.Warnf("Unknown state: %d", state.State)
+		h.logger.Warnf("Unknown state: %d", userState.State)
 		return h.handleDefaultState(c)
 	}
 }
@@ -94,21 +94,9 @@ func (h *MemberHandler) handleStart(c telebot.Context) error {
 		return err
 	}
 
-	// Check if a server is selected
-	state, err := h.stateService.GetState(c.Sender().ID)
-	if err != nil {
-		h.logger.Errorf("Failed to get user state: %v", err)
-		return err
-	}
-
-	// If no server is selected, show server selection
-	if state.SelectedServer == nil {
-		return h.handleSelectServer(c)
-	}
-
 	// Show main menu
 	markup := h.createMainKeyboard(permissions.Member)
-	return h.sendTextMessage(c, fmt.Sprintf("Welcome to X-UI Member Bot!\nCurrent server: %s", *state.SelectedServer), markup)
+	return h.sendTextMessage(c, "Welcome to X-UI Member Bot!", markup)
 }
 
 // handleSelectServer handles server selection
@@ -123,16 +111,9 @@ func (h *MemberHandler) handleCreateNewConfig(c telebot.Context) error {
 		return h.handleSelectServer(c)
 	}
 
-	// Get user state
-	state, err := h.stateService.GetState(c.Sender().ID)
-	if err != nil {
-		h.logger.Errorf("Failed to get user state: %v", err)
-		return err
-	}
-
 	// Get subscription URL for the user's Telegram ID
 	username := fmt.Sprintf("tg_%d", c.Sender().ID)
-	subURL, err := h.xrayService.GetSubscriptionURL(context.Background(), *state.SelectedServer, username)
+	subURL, err := h.xrayService.GetSubscriptionURL(context.Background(), username)
 	if err != nil {
 		h.logger.Errorf("Failed to get subscription URL: %v", err)
 		return h.sendTextMessage(c, fmt.Sprintf("Failed to get subscription URL: %v", err), nil)
@@ -155,15 +136,8 @@ func (h *MemberHandler) handleViewConfigsInfo(c telebot.Context) error {
 		return h.handleSelectServer(c)
 	}
 
-	// Get user state
-	state, err := h.stateService.GetState(c.Sender().ID)
-	if err != nil {
-		h.logger.Errorf("Failed to get user state: %v", err)
-		return err
-	}
-
 	// Get inbounds
-	inbounds, err := h.xrayService.GetInbounds(context.Background(), *state.SelectedServer)
+	inbounds, err := h.xrayService.GetInbounds(context.Background())
 	if err != nil {
 		h.logger.Errorf("Failed to get inbounds: %v", err)
 		return h.sendTextMessage(c, fmt.Sprintf("Failed to get inbounds: %v", err), nil)

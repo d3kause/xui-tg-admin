@@ -30,7 +30,6 @@ A Telegram bot for managing X-ray VPN panel users with role-based access control
    ```
    TG_TOKEN=your_telegram_bot_token
    TG_ADMIN_IDS=123456789,987654321
-   XRAY_SERVER=my-server
    XRAY_USER=admin
    XRAY_PASSWORD=password123
    XRAY_API_URL=http://server:54321
@@ -65,7 +64,6 @@ A Telegram bot for managing X-ray VPN panel users with role-based access control
    ```bash
    export TG_TOKEN=your_telegram_bot_token
    export TG_ADMIN_IDS=123456789,987654321
-   export XRAY_SERVER=my-server
    export XRAY_USER=admin
    export XRAY_PASSWORD=password123
    export XRAY_API_URL=http://server:54321
@@ -98,7 +96,6 @@ nano .env
 |----------|-------------|----------|---------|
 | TG_TOKEN | Telegram Bot Token | Yes | `123456789:ABCdefGHIjklMNOpqrSTUvwxYZ` |
 | TG_ADMIN_IDS | Comma-separated list of Telegram user IDs with admin access | Yes | `123456789,987654321` |
-| XRAY_SERVER | X-ray server name | Yes | `my-server` |
 | XRAY_USER | X-ray panel username | Yes | `admin` |
 | XRAY_PASSWORD | X-ray panel password | Yes | `password123` |
 | XRAY_API_URL | X-ray panel API URL | Yes | `http://server:54321` |

@@ -2,13 +2,11 @@ package handlers
 
 import (
 	"bytes"
-	"fmt"
 
 	"github.com/sirupsen/logrus"
 	telebot "gopkg.in/telebot.v3"
 
 	"xui-tg-admin/internal/config"
-	"xui-tg-admin/internal/models"
 	"xui-tg-admin/internal/permissions"
 	"xui-tg-admin/internal/services"
 )
@@ -104,6 +102,9 @@ func (h *BaseHandler) createMainKeyboard(accessType permissions.AccessType) *tel
 			},
 			{
 				telebot.Btn{Text: "Network Usage"},
+				telebot.Btn{Text: "Detailed Usage"},
+			},
+			{
 				telebot.Btn{Text: "Reset Network Usage"},
 			},
 			{
@@ -159,4 +160,16 @@ func (h *BaseHandler) createConfirmKeyboard() *telebot.ReplyMarkup {
 	)
 
 	return markup
+}
+
+// HandleSelectServer handles server selection
+func (h *BaseHandler) HandleSelectServer(c telebot.Context) error {
+	// Since we have a single server configuration, just show a message
+	return h.sendTextMessage(c, "Server configuration is handled automatically.", h.createReturnKeyboard())
+}
+
+// validateServerSelection validates that a server is selected
+func (h *BaseHandler) validateServerSelection(userID int64) error {
+	// Since we have a single server configuration, always return nil
+	return nil
 }

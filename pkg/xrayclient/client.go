@@ -2,6 +2,7 @@ package xrayclient
 
 import (
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -37,7 +38,8 @@ func NewClient(serverConfig config.ServerConfig, logger *logrus.Logger) *Client 
 		SetTimeout(30 * time.Second).
 		SetRetryCount(3).
 		SetRetryWaitTime(5 * time.Second).
-		SetRetryMaxWaitTime(20 * time.Second)
+		SetRetryMaxWaitTime(20 * time.Second).
+		SetTLSClientConfig(&tls.Config{InsecureSkipVerify: true})
 
 	return &Client{
 		httpClient:   httpClient,
@@ -55,10 +57,12 @@ func (c *Client) Login(ctx context.Context) error {
 	}
 
 	c.logger.Infof("Logging in to X-ray API at %s", c.serverConfig.APIURL)
+	c.logger.Debugf("Using username: %s", c.serverConfig.User)
 
 	resp, err := c.httpClient.R().
 		SetContext(ctx).
-		SetFormData(map[string]string{
+		SetHeader("Content-Type", "application/json").
+		SetBody(map[string]string{
 			"username": c.serverConfig.User,
 			"password": c.serverConfig.Password,
 		}).
@@ -69,6 +73,8 @@ func (c *Client) Login(ctx context.Context) error {
 	}
 
 	if resp.StatusCode() != http.StatusOK {
+		c.logger.Errorf("Login failed - URL: %s/login, Status: %d, Response: %s",
+			c.serverConfig.APIURL, resp.StatusCode(), string(resp.Body()))
 		return fmt.Errorf("login failed with status code: %d", resp.StatusCode())
 	}
 
@@ -103,7 +109,7 @@ func (c *Client) GetInbounds(ctx context.Context) ([]models.Inbound, error) {
 	resp, err := c.httpClient.R().
 		SetContext(ctx).
 		SetCookies(cookies.([]*http.Cookie)).
-		Get(fmt.Sprintf("%s/panel/api/inbounds/list", c.serverConfig.APIURL))
+		Get(fmt.Sprintf("%s/xui/API/inbounds", c.serverConfig.APIURL))
 
 	if err != nil {
 		return nil, fmt.Errorf("get inbounds request failed: %w", err)
@@ -156,7 +162,7 @@ func (c *Client) AddClientToInbound(ctx context.Context, inboundID int, client m
 			"id":     inboundID,
 			"client": client.ToDictionary(),
 		}).
-		Post(fmt.Sprintf("%s/panel/api/inbounds/addClient", c.serverConfig.APIURL))
+		Post(fmt.Sprintf("%s/xui/API/inbounds/addClient", c.serverConfig.APIURL))
 
 	if err != nil {
 		return fmt.Errorf("add client request failed: %w", err)
@@ -197,7 +203,7 @@ func (c *Client) RemoveClients(ctx context.Context, emails []string) error {
 		SetBody(map[string]interface{}{
 			"emails": emails,
 		}).
-		Post(fmt.Sprintf("%s/panel/api/inbounds/delClient", c.serverConfig.APIURL))
+		Post(fmt.Sprintf("%s/xui/API/inbounds/delClient", c.serverConfig.APIURL))
 
 	if err != nil {
 		return fmt.Errorf("remove clients request failed: %w", err)
@@ -235,7 +241,7 @@ func (c *Client) GetOnlineUsers(ctx context.Context) ([]string, error) {
 	resp, err := c.httpClient.R().
 		SetContext(ctx).
 		SetCookies(cookies.([]*http.Cookie)).
-		Get(fmt.Sprintf("%s/panel/api/inbounds/onlines", c.serverConfig.APIURL))
+		Get(fmt.Sprintf("%s/xui/API/inbounds/onlines", c.serverConfig.APIURL))
 
 	if err != nil {
 		return nil, fmt.Errorf("get online users request failed: %w", err)
@@ -288,7 +294,7 @@ func (c *Client) ResetUserTraffic(ctx context.Context, inboundID int, email stri
 			"id":    inboundID,
 			"email": email,
 		}).
-		Post(fmt.Sprintf("%s/panel/api/inbounds/resetClientTraffic", c.serverConfig.APIURL))
+		Post(fmt.Sprintf("%s/xui/API/inbounds/resetClientTraffic", c.serverConfig.APIURL))
 
 	if err != nil {
 		return fmt.Errorf("reset user traffic request failed: %w", err)

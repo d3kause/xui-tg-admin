@@ -45,20 +45,20 @@ func (h *DemoHandler) Handle(ctx context.Context, c telebot.Context) error {
 	userID := c.Sender().ID
 
 	// Get user state
-	state, err := h.stateService.GetState(userID)
+	userState, err := h.stateService.GetState(userID)
 	if err != nil {
 		h.logger.Errorf("Failed to get user state: %v", err)
 		return err
 	}
 
 	// Handle based on state
-	switch state.State {
+	switch userState.State {
 	case models.Default:
 		return h.handleDefaultState(c)
-	case models.AwaitingSelectServer:
+	case models.AwaitSelectUserName:
 		return h.HandleSelectServer(c)
 	default:
-		h.logger.Warnf("Unknown state: %d", state.State)
+		h.logger.Warnf("Unknown state: %d", userState.State)
 		return h.handleDefaultState(c)
 	}
 }

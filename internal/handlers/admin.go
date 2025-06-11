@@ -49,18 +49,16 @@ func (h *AdminHandler) Handle(ctx context.Context, c telebot.Context) error {
 	userID := c.Sender().ID
 
 	// Get user state
-	state, err := h.stateService.GetState(userID)
+	userState, err := h.stateService.GetState(userID)
 	if err != nil {
 		h.logger.Errorf("Failed to get user state: %v", err)
 		return err
 	}
 
 	// Handle based on state
-	switch state.State {
+	switch userState.State {
 	case models.Default:
 		return h.handleDefaultState(c)
-	case models.AwaitingSelectServer:
-		return h.HandleSelectServer(c)
 	case models.AwaitingInputUserName:
 		return h.processUserName(c)
 	case models.AwaitingDuration:
@@ -76,7 +74,7 @@ func (h *AdminHandler) Handle(ctx context.Context, c telebot.Context) error {
 	case models.AwaitExtendDuration:
 		return h.processExtendDuration(c)
 	default:
-		h.logger.Warnf("Unknown state: %d", state.State)
+		h.logger.Warnf("Unknown state: %d", userState.State)
 		return h.handleDefaultState(c)
 	}
 }
@@ -90,6 +88,7 @@ func (h *AdminHandler) initializeCommands() {
 		"Delete Member":       h.handleDeleteMember,
 		"Online Members":      h.handleGetOnlineMembers,
 		"Network Usage":       h.handleGetUsersNetworkUsage,
+		"Detailed Usage":      h.handleGetDetailedUsersInfo,
 		"Reset Network Usage": h.handleResetUsersNetworkUsage,
 		"Return to Main Menu": h.handleStart,
 		"Cancel":              h.handleStart,
@@ -146,15 +145,15 @@ func (h *AdminHandler) handleAddMember(c telebot.Context) error {
 // handleEditMember handles the Edit Member command
 func (h *AdminHandler) handleEditMember(c telebot.Context) error {
 
-	// Get user state
-	state, err := h.stateService.GetState(c.Sender().ID)
+	// Проверяем доступность сервиса
+	_, err := h.stateService.GetState(c.Sender().ID)
 	if err != nil {
 		h.logger.Errorf("Failed to get user state: %v", err)
 		return err
 	}
 
 	// Get all members
-	members, err := h.xrayService.GetAllMembers(context.Background(), *state.SelectedServer)
+	members, err := h.xrayService.GetAllMembers(context.Background())
 	if err != nil {
 		h.logger.Errorf("Failed to get members: %v", err)
 		return h.sendTextMessage(c, fmt.Sprintf("Failed to get members: %v", err), nil)
@@ -192,8 +191,8 @@ func (h *AdminHandler) handleEditMember(c telebot.Context) error {
 // handleDeleteMember handles the Delete Member command
 func (h *AdminHandler) handleDeleteMember(c telebot.Context) error {
 
-	// Get user state
-	state, err := h.stateService.GetState(c.Sender().ID)
+	// Проверяем доступность сервиса
+	_, err := h.stateService.GetState(c.Sender().ID)
 	if err != nil {
 		h.logger.Errorf("Failed to get user state: %v", err)
 		return err
@@ -238,13 +237,6 @@ func (h *AdminHandler) handleDeleteMember(c telebot.Context) error {
 // handleGetOnlineMembers handles the Online Members command
 func (h *AdminHandler) handleGetOnlineMembers(c telebot.Context) error {
 
-	// Get user state
-	state, err := h.stateService.GetState(c.Sender().ID)
-	if err != nil {
-		h.logger.Errorf("Failed to get user state: %v", err)
-		return err
-	}
-
 	// Get online users
 	onlineUsers, err := h.xrayService.GetOnlineUsers(context.Background())
 	if err != nil {
@@ -269,68 +261,92 @@ func (h *AdminHandler) handleGetOnlineMembers(c telebot.Context) error {
 // handleGetUsersNetworkUsage handles the Network Usage command
 func (h *AdminHandler) handleGetUsersNetworkUsage(c telebot.Context) error {
 
-	// Get user state
-	state, err := h.stateService.GetState(c.Sender().ID)
-	if err != nil {
-		h.logger.Errorf("Failed to get user state: %v", err)
-		return err
-	}
-
 	// Get inbounds
-	inbounds, err := h.xrayService.GetInbounds(context.Background(), *state.SelectedServer)
+	inbounds, err := h.xrayService.GetInbounds(context.Background())
 	if err != nil {
 		h.logger.Errorf("Failed to get inbounds: %v", err)
 		return h.sendTextMessage(c, fmt.Sprintf("Failed to get inbounds: %v", err), nil)
 	}
 
-	// Format message
-	var message strings.Builder
-	message.WriteString("Network Usage:\n\n")
+	// Format beautiful network usage report
+	message := h.formatNetworkUsageReport(inbounds)
+
+	return h.sendTextMessage(c, message, h.createReturnKeyboard())
+}
+
+// formatNetworkUsageReport formats a beautiful network usage report
+func (h *AdminHandler) formatNetworkUsageReport(inbounds []models.Inbound) string {
+	var sb strings.Builder
+	sb.WriteString("<b>Network Usage Report:</b>\n")
+	sb.WriteString("<pre>\n")
+	sb.WriteString("Email             | ↓ (GB) | ↑ (GB)\n")
+	sb.WriteString("------------------|--------|--------\n")
+
+	var totalUploadGB int64 = 0
+	var totalDownloadGB int64 = 0
 
 	for _, inbound := range inbounds {
-		message.WriteString(fmt.Sprintf("Inbound: %s (ID: %d)\n", inbound.Remark, inbound.ID))
-
 		if len(inbound.ClientStats) == 0 {
-			message.WriteString("  No clients\n\n")
 			continue
 		}
 
+		sb.WriteString("\n")
+		sb.WriteString(fmt.Sprintf("Inbound: %s\n", inbound.Remark))
+
+		inboundDownloadTotal, inboundUploadTotal := h.calculateInboundTraffic(inbound.ClientStats)
+		totalDownloadGB += inboundDownloadTotal
+		totalUploadGB += inboundUploadTotal
+
 		for _, client := range inbound.ClientStats {
-			// Convert bytes to GB
-			upGB := float64(client.Up) / (1024 * 1024 * 1024)
-			downGB := float64(client.Down) / (1024 * 1024 * 1024)
-			totalGB := float64(client.Total) / (1024 * 1024 * 1024)
-
-			// Format expiry time
-			expiryTime := "Never"
-			if client.ExpiryTime > 0 {
-				expiryTime = time.Unix(client.ExpiryTime/1000, 0).Format("2006-01-02")
-			}
-
-			message.WriteString(fmt.Sprintf("  %s:\n", client.Email))
-			message.WriteString(fmt.Sprintf("    Up: %.2f GB\n", upGB))
-			message.WriteString(fmt.Sprintf("    Down: %.2f GB\n", downGB))
-			message.WriteString(fmt.Sprintf("    Total: %.2f GB\n", totalGB))
-			message.WriteString(fmt.Sprintf("    Expiry: %s\n", expiryTime))
-			message.WriteString(fmt.Sprintf("    Enabled: %v\n\n", client.Enable))
+			sb.WriteString(h.formatTableLine(client.Email, client.Down, client.Up))
 		}
+
+		sb.WriteString("-----------\n")
+		sb.WriteString(h.formatTableLine("Total:", inboundDownloadTotal*1024*1024*1024, inboundUploadTotal*1024*1024*1024))
 	}
 
-	return h.sendTextMessage(c, message.String(), h.createReturnKeyboard())
+	sb.WriteString("\n")
+	sb.WriteString(h.formatTableLine("Grand Total:", totalDownloadGB*1024*1024*1024, totalUploadGB*1024*1024*1024))
+	sb.WriteString("</pre>")
+
+	return sb.String()
+}
+
+// calculateInboundTraffic calculates total traffic for an inbound (in GB)
+func (h *AdminHandler) calculateInboundTraffic(clientStats []models.ClientStat) (downloadGB int64, uploadGB int64) {
+	for _, client := range clientStats {
+		downloadGB += client.Down / (1024 * 1024 * 1024)
+		uploadGB += client.Up / (1024 * 1024 * 1024)
+	}
+	return
+}
+
+// formatTableLine formats a single line of the traffic table
+func (h *AdminHandler) formatTableLine(email string, downBytes int64, upBytes int64) string {
+	downGB := float64(downBytes) / (1024 * 1024 * 1024)
+	upGB := float64(upBytes) / (1024 * 1024 * 1024)
+
+	// Truncate email if too long for table formatting
+	displayEmail := email
+	if len(email) > 17 {
+		displayEmail = email[:14] + "..."
+	}
+
+	return fmt.Sprintf("%-17s | %6.2f | %6.2f\n", displayEmail, downGB, upGB)
 }
 
 // handleResetUsersNetworkUsage handles the Reset Network Usage command
 func (h *AdminHandler) handleResetUsersNetworkUsage(c telebot.Context) error {
 
-	// Get user state
-	state, err := h.stateService.GetState(c.Sender().ID)
+	// Проверяем доступность сервиса
+	_, err := h.stateService.GetState(c.Sender().ID)
 	if err != nil {
 		h.logger.Errorf("Failed to get user state: %v", err)
 		return err
 	}
 
 	// Get all members
-	members, err := h.xrayService.GetAllMembers(context.Background(), *state.SelectedServer)
+	members, err := h.xrayService.GetAllMembers(context.Background())
 	if err != nil {
 		h.logger.Errorf("Failed to get members: %v", err)
 		return h.sendTextMessage(c, fmt.Sprintf("Failed to get members: %v", err), nil)
@@ -385,7 +401,17 @@ func (h *AdminHandler) processUserName(c telebot.Context) error {
 		return h.handleStart(c)
 	}
 
-	// TODO: Add username validation
+	// Validate username format
+	if len(username) < 3 || len(username) > 32 {
+		return h.sendTextMessage(c, "Username must be between 3 and 32 characters. Please try again:", nil)
+	}
+
+	// Check if username contains only allowed characters (alphanumeric and underscore)
+	for _, r := range username {
+		if !((r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || r == '_') {
+			return h.sendTextMessage(c, "Username can only contain letters, numbers, and underscores. Please try again:", nil)
+		}
+	}
 
 	// Store username in state
 	err := h.stateService.WithPayload(c.Sender().ID, username)
@@ -423,18 +449,18 @@ func (h *AdminHandler) processDuration(c telebot.Context) error {
 	}
 
 	// Get user state
-	state, err := h.stateService.GetState(c.Sender().ID)
+	userState, err := h.stateService.GetState(c.Sender().ID)
 	if err != nil {
 		h.logger.Errorf("Failed to get user state: %v", err)
 		return err
 	}
 
 	// Get username from state
-	if state.Payload == nil {
+	if userState.Payload == nil {
 		return h.sendTextMessage(c, "Username not found. Please try again.", nil)
 	}
 
-	username := *state.Payload
+	username := *userState.Payload
 
 	// Calculate expiry time
 	expiryTime := time.Now().Add(time.Duration(days)*24*time.Hour).Unix() * 1000
@@ -452,14 +478,14 @@ func (h *AdminHandler) processDuration(c telebot.Context) error {
 	}
 
 	// Add client to inbound
-	err = h.xrayService.AddClient(context.Background(), *state.SelectedServer, 1, client)
+	err = h.xrayService.AddClient(context.Background(), 1, client)
 	if err != nil {
 		h.logger.Errorf("Failed to add client: %v", err)
 		return h.sendTextMessage(c, fmt.Sprintf("Failed to add client: %v", err), nil)
 	}
 
 	// Get subscription URL
-	subURL, err := h.xrayService.GetSubscriptionURL(context.Background(), *state.SelectedServer, username)
+	subURL, err := h.xrayService.GetSubscriptionURL(context.Background(), username)
 	if err != nil {
 		h.logger.Errorf("Failed to get subscription URL: %v", err)
 		return h.sendTextMessage(c, fmt.Sprintf("Client added, but failed to get subscription URL: %v", err), nil)
@@ -531,19 +557,19 @@ func (h *AdminHandler) processMemberAction(c telebot.Context) error {
 	// Get action from message
 	action := c.Text()
 
-	// Get user state
-	state, err := h.stateService.GetState(c.Sender().ID)
+	// Проверяем доступность сервиса
+	userState, err := h.stateService.GetState(c.Sender().ID)
 	if err != nil {
 		h.logger.Errorf("Failed to get user state: %v", err)
 		return err
 	}
 
 	// Get username from state
-	if state.Payload == nil {
+	if userState.Payload == nil {
 		return h.sendTextMessage(c, "Username not found. Please try again.", nil)
 	}
 
-	username := *state.Payload
+	username := *userState.Payload
 
 	// Handle action
 	switch action {
@@ -564,15 +590,8 @@ func (h *AdminHandler) processMemberAction(c telebot.Context) error {
 
 // handleViewConfig handles the View Config action
 func (h *AdminHandler) handleViewConfig(c telebot.Context, username string) error {
-	// Get user state
-	state, err := h.stateService.GetState(c.Sender().ID)
-	if err != nil {
-		h.logger.Errorf("Failed to get user state: %v", err)
-		return err
-	}
-
 	// Get subscription URL
-	subURL, err := h.xrayService.GetSubscriptionURL(context.Background(), *state.SelectedServer, username)
+	subURL, err := h.xrayService.GetSubscriptionURL(context.Background(), username)
 	if err != nil {
 		h.logger.Errorf("Failed to get subscription URL: %v", err)
 		return h.sendTextMessage(c, fmt.Sprintf("Failed to get subscription URL: %v", err), nil)
@@ -619,36 +638,82 @@ func (h *AdminHandler) processExtendDuration(c telebot.Context) error {
 	}
 
 	// Get user state
-	state, err := h.stateService.GetState(c.Sender().ID)
+	userState, err := h.stateService.GetState(c.Sender().ID)
 	if err != nil {
 		h.logger.Errorf("Failed to get user state: %v", err)
 		return err
 	}
 
 	// Get username from state
-	if state.Payload == nil {
+	if userState.Payload == nil {
 		return h.sendTextMessage(c, "Username not found. Please try again.", nil)
 	}
 
-	username := *state.Payload
+	username := *userState.Payload
 
-	// TODO: Implement extend duration functionality
-	// This would require getting the current client, updating the expiry time, and updating the client
+	// Get inbounds to find the client
+	inbounds, err := h.xrayService.GetInbounds(context.Background())
+	if err != nil {
+		h.logger.Errorf("Failed to get inbounds: %v", err)
+		return h.sendTextMessage(c, fmt.Sprintf("Failed to get inbounds: %v", err), nil)
+	}
 
-	return h.sendTextMessage(c, fmt.Sprintf("Extended duration for %s by %d days.", username, days), h.createReturnKeyboard())
+	// Find the client
+	var foundInbound *models.Inbound
+	var foundClient *models.ClientStat
+	for _, inbound := range inbounds {
+		for _, client := range inbound.ClientStats {
+			if client.Email == username {
+				foundInbound = &inbound
+				foundClient = &client
+				break
+			}
+		}
+		if foundInbound != nil {
+			break
+		}
+	}
+
+	if foundInbound == nil || foundClient == nil {
+		return h.sendTextMessage(c, fmt.Sprintf("Client %s not found.", username), h.createReturnKeyboard())
+	}
+
+	// Calculate new expiry time (extend by the specified days)
+	newExpiryTime := foundClient.ExpiryTime + (int64(days) * 24 * 60 * 60 * 1000) // Convert days to milliseconds
+
+	// Create updated client
+	updatedClient := models.Client{
+		ID:         username,
+		Enable:     foundClient.Enable,
+		Email:      username,
+		TotalGB:    int(foundClient.Total / (1024 * 1024 * 1024)), // Convert bytes to GB
+		LimitIP:    0,                                             // Maintain original limit
+		ExpiryTime: &newExpiryTime,
+		TgID:       fmt.Sprintf("%d", c.Sender().ID),
+		SubID:      models.GenerateSubID(),
+	}
+
+	// Remove the old client
+	err = h.xrayService.RemoveClients(context.Background(), []string{username})
+	if err != nil {
+		h.logger.Errorf("Failed to remove old client: %v", err)
+		return h.sendTextMessage(c, fmt.Sprintf("Failed to remove old client: %v", err), nil)
+	}
+
+	// Add the updated client
+	err = h.xrayService.AddClient(context.Background(), foundInbound.ID, updatedClient)
+	if err != nil {
+		h.logger.Errorf("Failed to add updated client: %v", err)
+		return h.sendTextMessage(c, fmt.Sprintf("Failed to add updated client: %v", err), nil)
+	}
+
+	return h.sendTextMessage(c, fmt.Sprintf("Successfully extended duration for %s by %d days.", username, days), h.createReturnKeyboard())
 }
 
 // handleResetTraffic handles the Reset Traffic action
 func (h *AdminHandler) handleResetTraffic(c telebot.Context, username string) error {
-	// Get user state
-	state, err := h.stateService.GetState(c.Sender().ID)
-	if err != nil {
-		h.logger.Errorf("Failed to get user state: %v", err)
-		return err
-	}
-
 	// Get inbounds
-	inbounds, err := h.xrayService.GetInbounds(context.Background(), *state.SelectedServer)
+	inbounds, err := h.xrayService.GetInbounds(context.Background())
 	if err != nil {
 		h.logger.Errorf("Failed to get inbounds: %v", err)
 		return h.sendTextMessage(c, fmt.Sprintf("Failed to get inbounds: %v", err), nil)
@@ -676,7 +741,7 @@ func (h *AdminHandler) handleResetTraffic(c telebot.Context, username string) er
 	}
 
 	// Reset traffic
-	err = h.xrayService.ResetUserTraffic(context.Background(), *state.SelectedServer, inboundID, username)
+	err = h.xrayService.ResetUserTraffic(context.Background(), inboundID, username)
 	if err != nil {
 		h.logger.Errorf("Failed to reset traffic: %v", err)
 		return h.sendTextMessage(c, fmt.Sprintf("Failed to reset traffic: %v", err), nil)
@@ -702,15 +767,8 @@ func (h *AdminHandler) processConfirmDeletion(c telebot.Context) error {
 		return h.handleStart(c)
 	}
 
-	// Get user state
-	state, err := h.stateService.GetState(c.Sender().ID)
-	if err != nil {
-		h.logger.Errorf("Failed to get user state: %v", err)
-		return err
-	}
-
 	// Delete client
-	err = h.xrayService.RemoveClients(context.Background(), *state.SelectedServer, []string{username})
+	err := h.xrayService.RemoveClients(context.Background(), []string{username})
 	if err != nil {
 		h.logger.Errorf("Failed to delete client: %v", err)
 		return h.sendTextMessage(c, fmt.Sprintf("Failed to delete client: %v", err), nil)
@@ -727,13 +785,6 @@ func (h *AdminHandler) processConfirmReset(c telebot.Context) error {
 	// Validate username
 	if username == "Return to Main Menu" {
 		return h.handleStart(c)
-	}
-
-	// Get user state
-	state, err := h.stateService.GetState(c.Sender().ID)
-	if err != nil {
-		h.logger.Errorf("Failed to get user state: %v", err)
-		return err
 	}
 
 	// Get inbounds
@@ -765,11 +816,128 @@ func (h *AdminHandler) processConfirmReset(c telebot.Context) error {
 	}
 
 	// Reset traffic
-	err = h.xrayService.ResetUserTraffic(context.Background(), *state.SelectedServer, inboundID, username)
+	err = h.xrayService.ResetUserTraffic(context.Background(), inboundID, username)
 	if err != nil {
 		h.logger.Errorf("Failed to reset traffic: %v", err)
 		return h.sendTextMessage(c, fmt.Sprintf("Failed to reset traffic: %v", err), nil)
 	}
 
 	return h.sendTextMessage(c, fmt.Sprintf("Traffic reset for %s.", username), h.createReturnKeyboard())
+}
+
+// handleGetDetailedUsersInfo handles the Detailed Usage command
+func (h *AdminHandler) handleGetDetailedUsersInfo(c telebot.Context) error {
+
+	// Get inbounds
+	inbounds, err := h.xrayService.GetInbounds(context.Background())
+	if err != nil {
+		h.logger.Errorf("Failed to get inbounds: %v", err)
+		return h.sendTextMessage(c, fmt.Sprintf("Failed to get inbounds: %v", err), nil)
+	}
+
+	// Format detailed user information report
+	message := h.formatDetailedUsersReport(inbounds)
+
+	return h.sendTextMessage(c, message, h.createReturnKeyboard())
+}
+
+// formatDetailedUsersReport formats a detailed users information report
+func (h *AdminHandler) formatDetailedUsersReport(inbounds []models.Inbound) string {
+	// Aggregate user data from all inbounds
+	userSummary := h.aggregateUserData(inbounds)
+
+	if len(userSummary) == 0 {
+		return "No active users found."
+	}
+
+	var sb strings.Builder
+	sb.WriteString("<b>Detailed Users Information:</b>\n")
+	sb.WriteString("<pre>\n")
+
+	for email, data := range userSummary {
+		// Convert bytes to GB
+		upGB := float64(data.TotalUp) / (1024 * 1024 * 1024)
+		downGB := float64(data.TotalDown) / (1024 * 1024 * 1024)
+
+		// Format expiry time
+		expiryTime := "Never"
+		if data.ExpiryTime > 0 {
+			expiryTime = time.Unix(data.ExpiryTime/1000, 0).Format("2006-01-02 15:04")
+		}
+
+		// Status text
+		statusText := "🔴 Disabled"
+		if data.Enable {
+			statusText = "🟢 Active"
+		}
+
+		sb.WriteString(fmt.Sprintf("📧 Email: %s\n", email))
+		sb.WriteString(fmt.Sprintf("📊 Status: %s\n", statusText))
+		sb.WriteString(fmt.Sprintf("⬆️ Upload: %.2f GB\n", upGB))
+		sb.WriteString(fmt.Sprintf("⬇️ Download: %.2f GB\n", downGB))
+		sb.WriteString(fmt.Sprintf("📍 Inbounds: %s\n", strings.Join(data.InboundNames, ", ")))
+		sb.WriteString(fmt.Sprintf("⏰ Expires: %s\n", expiryTime))
+		sb.WriteString("────────────────\n")
+	}
+
+	sb.WriteString("</pre>")
+	return sb.String()
+}
+
+// UserSummary represents aggregated user data
+type UserSummary struct {
+	TotalUp      int64
+	TotalDown    int64
+	Enable       bool
+	ExpiryTime   int64
+	InboundNames []string
+}
+
+// aggregateUserData aggregates user data from all inbounds
+func (h *AdminHandler) aggregateUserData(inbounds []models.Inbound) map[string]*UserSummary {
+	userSummary := make(map[string]*UserSummary)
+
+	for _, inbound := range inbounds {
+		for _, client := range inbound.ClientStats {
+			if userSummary[client.Email] == nil {
+				userSummary[client.Email] = &UserSummary{
+					TotalUp:      0,
+					TotalDown:    0,
+					Enable:       client.Enable,
+					ExpiryTime:   client.ExpiryTime,
+					InboundNames: []string{},
+				}
+			}
+
+			summary := userSummary[client.Email]
+
+			// Aggregate traffic data
+			summary.TotalUp += client.Up
+			summary.TotalDown += client.Down
+
+			// Keep enabled status if any inbound is enabled
+			if client.Enable {
+				summary.Enable = true
+			}
+
+			// Use the latest expiry time
+			if client.ExpiryTime > summary.ExpiryTime {
+				summary.ExpiryTime = client.ExpiryTime
+			}
+
+			// Add inbound name if not already present
+			inboundFound := false
+			for _, name := range summary.InboundNames {
+				if name == inbound.Remark {
+					inboundFound = true
+					break
+				}
+			}
+			if !inboundFound {
+				summary.InboundNames = append(summary.InboundNames, inbound.Remark)
+			}
+		}
+	}
+
+	return userSummary
 }

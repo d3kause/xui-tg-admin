@@ -24,6 +24,7 @@ const (
 
 // UserState represents the state of a user's conversation
 type UserState struct {
-	State   ConversationState
-	Payload *string
+	State          ConversationState
+	Payload        *string
+	SelectedServer *string
 }
