@@ -1,0 +1,16 @@
+services:
+  x-ui-tg-go:
+    build: .
+    container_name: x-ui-tg-go
+    restart: unless-stopped
+    environment:
+      - TG_TOKEN=${TG_TOKEN}
+      - TG_ADMIN_IDS=${TG_ADMIN_IDS}
+      - XRAY_SERVERS=${XRAY_SERVERS}
+      - XRAY_USERS=${XRAY_USERS}
+      - XRAY_PASSWORDS=${XRAY_PASSWORDS}
+      - XRAY_API_URLS=${XRAY_API_URLS}
+      - XRAY_SUB_URL_PREFIXES=${XRAY_SUB_URL_PREFIXES}
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+    volumes:
+      - ./data:/root/data
