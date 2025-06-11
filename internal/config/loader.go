@@ -20,7 +20,6 @@ func Load() (*Config, error) {
 	// Define environment variables
 	v.BindEnv("TG_TOKEN")
 	v.BindEnv("TG_ADMIN_IDS")
-	v.BindEnv("XRAY_SERVER")
 	v.BindEnv("XRAY_USER")
 	v.BindEnv("XRAY_PASSWORD")
 	v.BindEnv("XRAY_API_URL")
@@ -49,19 +48,17 @@ func Load() (*Config, error) {
 	}
 
 	// Parse server configuration
-	serverName := v.GetString("XRAY_SERVER")
 	user := v.GetString("XRAY_USER")
 	password := v.GetString("XRAY_PASSWORD")
 	apiURL := v.GetString("XRAY_API_URL")
 	subURLPrefix := v.GetString("XRAY_SUB_URL_PREFIX")
 
-	if serverName == "" || user == "" || password == "" || apiURL == "" {
+	if user == "" || password == "" || apiURL == "" {
 		return nil, errors.New("missing required server configuration")
 	}
 
 	// Create server configuration
 	cfg.Server = ServerConfig{
-		Name:         strings.TrimSpace(serverName),
 		User:         strings.TrimSpace(user),
 		Password:     strings.TrimSpace(password),
 		APIURL:       strings.TrimSpace(apiURL),
@@ -87,9 +84,6 @@ func validateConfig(cfg *Config) error {
 	}
 
 	// Validate server configuration
-	if cfg.Server.Name == "" {
-		return errors.New("server name is required")
-	}
 	if cfg.Server.User == "" {
 		return errors.New("server user is required")
 	}

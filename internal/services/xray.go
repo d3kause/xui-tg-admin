@@ -74,14 +74,3 @@ func (s *XrayService) GetAllMembers(ctx context.Context) ([]string, error) {
 
 	return members, nil
 }
-
-// GetServerNames gets the name of the configured server
-func (s *XrayService) GetServerNames() []string {
-	return []string{s.config.Server.Name}
-}
-
-// getClient gets the X-ray API client
-func (s *XrayService) getClient(serverName string) (*xrayclient.Client, error) {
-	// Ignore serverName parameter as we only have one server
-	return s.client, nil
-}

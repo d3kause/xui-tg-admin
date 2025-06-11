@@ -15,7 +15,6 @@ type TelegramConfig struct {
 
 // ServerConfig holds the configuration for an X-ray server
 type ServerConfig struct {
-	Name         string `mapstructure:"name"`
 	User         string `mapstructure:"user"`
 	Password     string `mapstructure:"password"`
 	APIURL       string `mapstructure:"api_url"`

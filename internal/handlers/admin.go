@@ -117,21 +117,16 @@ func (h *AdminHandler) handleStart(c telebot.Context) error {
 		return err
 	}
 
-	// Check if a server is selected
-	state, err := h.stateService.GetState(c.Sender().ID)
+	// Get user state
+	_, err = h.stateService.GetState(c.Sender().ID)
 	if err != nil {
 		h.logger.Errorf("Failed to get user state: %v", err)
 		return err
 	}
 
-	// If no server is selected, show server selection
-	if state.SelectedServer == nil {
-		return h.HandleSelectServer(c)
-	}
-
 	// Show main menu
 	markup := h.createMainKeyboard(permissions.Admin)
-	return h.sendTextMessage(c, fmt.Sprintf("Welcome to X-UI Admin Bot!\nCurrent server: %s", *state.SelectedServer), markup)
+	return h.sendTextMessage(c, "Welcome to X-UI Admin Bot!", markup)
 }
 
 // handleAddMember handles the Add Member command

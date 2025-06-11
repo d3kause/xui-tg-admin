@@ -27,19 +27,18 @@ func NewUserStateService(logger *logrus.Logger) *UserStateService {
 // GetState gets a user's state
 func (s *UserStateService) GetState(userID int64) (*models.UserState, error) {
 	key := fmt.Sprintf("user_state_%d", userID)
-	
+
 	if data, found := s.cache.Get(key); found {
 		if state, ok := data.(*models.UserState); ok {
 			return state, nil
 		}
 		return nil, fmt.Errorf("invalid state type for user %d", userID)
 	}
-	
+
 	// Return default state if not found
 	return &models.UserState{
-		State:          models.Default,
-		Payload:        nil,
-		SelectedServer: nil,
+		State:   models.Default,
+		Payload: nil,
 	}, nil
 }
 
@@ -65,7 +64,7 @@ func (s *UserStateService) WithSelectedServer(userID int64, server string) error
 	if err != nil {
 		return err
 	}
-	
+
 	state.SelectedServer = &server
 	return s.SetState(userID, *state)
 }
@@ -76,7 +75,7 @@ func (s *UserStateService) WithConversationState(userID int64, conversationState
 	if err != nil {
 		return err
 	}
-	
+
 	state.State = conversationState
 	return s.SetState(userID, *state)
 }
@@ -87,7 +86,7 @@ func (s *UserStateService) WithPayload(userID int64, payload string) error {
 	if err != nil {
 		return err
 	}
-	
+
 	state.Payload = &payload
 	return s.SetState(userID, *state)
 }
