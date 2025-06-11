@@ -6,6 +6,7 @@ import (
 	"github.com/sirupsen/logrus"
 	telebot "gopkg.in/telebot.v3"
 
+	"xui-tg-admin/internal/commands"
 	"xui-tg-admin/internal/config"
 	"xui-tg-admin/internal/permissions"
 	"xui-tg-admin/internal/services"
@@ -93,36 +94,33 @@ func (h *BaseHandler) createMainKeyboard(accessType permissions.AccessType) *tel
 	case permissions.Admin:
 		rows = []telebot.Row{
 			{
-				telebot.Btn{Text: "Add Member"},
-				telebot.Btn{Text: "Edit Member"},
+				telebot.Btn{Text: commands.AddMember},
+				telebot.Btn{Text: commands.EditMember},
 			},
 			{
-				telebot.Btn{Text: "Delete Member"},
-				telebot.Btn{Text: "Online Members"},
+				telebot.Btn{Text: commands.DeleteMember},
+				telebot.Btn{Text: commands.OnlineMembers},
 			},
 			{
-				telebot.Btn{Text: "Network Usage"},
-				telebot.Btn{Text: "Detailed Usage"},
+				telebot.Btn{Text: commands.NetworkUsage},
+				telebot.Btn{Text: commands.DetailedUsage},
 			},
 			{
-				telebot.Btn{Text: "Reset Network Usage"},
-			},
-			{
-				telebot.Btn{Text: "Change Server"},
+				telebot.Btn{Text: commands.ResetNetworkUsage},
 			},
 		}
 	case permissions.Member:
 		rows = []telebot.Row{
 			{
-				telebot.Btn{Text: "Create New Config"},
-				telebot.Btn{Text: "View Configs Info"},
+				telebot.Btn{Text: commands.CreateNewConfig},
+				telebot.Btn{Text: commands.ViewConfigsInfo},
 			},
 		}
 	case permissions.Demo:
 		rows = []telebot.Row{
 			{
-				telebot.Btn{Text: "About"},
-				telebot.Btn{Text: "Help"},
+				telebot.Btn{Text: commands.About},
+				telebot.Btn{Text: commands.Help},
 			},
 		}
 	}
@@ -139,7 +137,7 @@ func (h *BaseHandler) createReturnKeyboard() *telebot.ReplyMarkup {
 
 	markup.Reply(
 		telebot.Row{
-			telebot.Btn{Text: "Return to Main Menu"},
+			telebot.Btn{Text: commands.ReturnToMainMenu},
 		},
 	)
 
@@ -154,8 +152,8 @@ func (h *BaseHandler) createConfirmKeyboard() *telebot.ReplyMarkup {
 
 	markup.Reply(
 		telebot.Row{
-			telebot.Btn{Text: "Confirm"},
-			telebot.Btn{Text: "Cancel"},
+			telebot.Btn{Text: commands.Confirm},
+			telebot.Btn{Text: commands.Cancel},
 		},
 	)
 

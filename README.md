@@ -9,10 +9,12 @@ A Telegram bot for managing X-ray VPN panel users with role-based access control
 - User creation, deletion, and traffic management
 - QR code generation for VPN configurations
 - Session-based conversation state management
+- Detailed traffic usage statistics
+- Automatic authentication and session caching
 
 ## Requirements
 
-- Go 1.21 or higher
+- Go 1.24 or higher
 - Docker and Docker Compose (for containerized deployment)
 - X-ray panel with API access
 
@@ -27,13 +29,13 @@ A Telegram bot for managing X-ray VPN panel users with role-based access control
    ```
 
 2. Create a `.env` file with your configuration:
-   ```
+   ```env
    TG_TOKEN=your_telegram_bot_token
    TG_ADMIN_IDS=123456789,987654321
    XRAY_USER=admin
    XRAY_PASSWORD=password123
-   XRAY_API_URL=http://server:54321
-   XRAY_SUB_URL_PREFIX=http://sub.example.com
+   XRAY_API_URL=http://localhost:8080/api
+   XRAY_SUB_URL_PREFIX=http://localhost:8080/sub
    LOG_LEVEL=info
    ```
 
@@ -66,8 +68,8 @@ A Telegram bot for managing X-ray VPN panel users with role-based access control
    export TG_ADMIN_IDS=123456789,987654321
    export XRAY_USER=admin
    export XRAY_PASSWORD=password123
-   export XRAY_API_URL=http://server:54321
-   export XRAY_SUB_URL_PREFIX=http://sub.example.com
+   export XRAY_API_URL=http://localhost:8080/api
+   export XRAY_SUB_URL_PREFIX=http://localhost:8080/sub
    export LOG_LEVEL=info
    ```
 
@@ -98,8 +100,8 @@ nano .env
 | TG_ADMIN_IDS | Comma-separated list of Telegram user IDs with admin access | Yes | `123456789,987654321` |
 | XRAY_USER | X-ray panel username | Yes | `admin` |
 | XRAY_PASSWORD | X-ray panel password | Yes | `password123` |
-| XRAY_API_URL | X-ray panel API URL | Yes | `http://server:54321` |
-| XRAY_SUB_URL_PREFIX | Subscription URL prefix | No | `http://sub.example.com` |
+| XRAY_API_URL | X-ray panel API URL | Yes | `http://localhost:8080/api` |
+| XRAY_SUB_URL_PREFIX | Subscription URL prefix | No | `http://localhost:8080/sub` |
 | LOG_LEVEL | Log level (debug, info, warn, error) | No | `info` |
 
 ## Usage
@@ -112,6 +114,7 @@ nano .env
 - `Delete Member` - Delete a member
 - `Online Members` - View online members
 - `Network Usage` - View network usage statistics
+- `Detailed Usage` - View detailed user statistics
 - `Reset Network Usage` - Reset network usage for a member
 
 ### Member Commands
@@ -132,6 +135,7 @@ The application follows a clean architecture approach with the following compone
 
 - **cmd/bot**: Main application entry point
 - **internal/config**: Configuration management
+- **internal/errors**: Custom error types
 - **internal/handlers**: Telegram message handlers
 - **internal/models**: Data models
 - **internal/permissions**: Access control
@@ -176,6 +180,7 @@ The application follows a clean architecture approach with the following compone
 │   │   └── bot.go
 │   └── xrayclient
 │       └── client.go
+├── config.example.env
 ├── Dockerfile
 ├── docker-compose.yml
 ├── go.mod
@@ -197,6 +202,38 @@ To run tests:
 go test ./...
 ```
 
+### Key Dependencies
+
+- **telebot.v3** - Telegram Bot API framework
+- **logrus** - Structured logging
+- **resty** - HTTP client for API requests
+- **viper** - Configuration management
+- **go-cache** - In-memory caching
+- **go-qrcode** - QR code generation
+
+## Features
+
+### User Management
+
+- Create new users with automatic configuration generation
+- Edit existing users (extend expiration time)
+- Delete users with confirmation
+- View detailed traffic usage statistics
+
+### Monitoring
+
+- View online users
+- Network usage statistics by inbounds
+- Detailed subscription statistics with grouping
+- Reset traffic counters
+
+### Security
+
+- Role-based access control (Admin/Member/Demo)
+- Automatic authentication with session caching
+- Input data validation
+- Graceful shutdown with proper signal handling
+
 ## License
 
 This project is licensed under the MIT License - see the LICENSE file for details.
@@ -205,3 +242,5 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 
 - [telebot](https://github.com/tucnak/telebot) - Telegram Bot API framework
 - [X-UI](https://github.com/vaxilu/x-ui) - X-ray panel
+- [resty](https://github.com/go-resty/resty) - HTTP client for Go
+- [logrus](https://github.com/sirupsen/logrus) - Structured logging

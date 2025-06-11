@@ -8,6 +8,7 @@ import (
 	"github.com/sirupsen/logrus"
 	telebot "gopkg.in/telebot.v3"
 
+	"xui-tg-admin/internal/commands"
 	"xui-tg-admin/internal/config"
 	"xui-tg-admin/internal/handlers"
 	"xui-tg-admin/internal/permissions"
@@ -107,7 +108,7 @@ func (b *Bot) setupMiddleware() {
 	// Handle all messages
 	b.bot.Handle(telebot.OnText, b.handleUpdate)
 	b.bot.Handle(telebot.OnCallback, b.handleUpdate)
-	b.bot.Handle("/start", b.handleUpdate)
+	b.bot.Handle(commands.Start, b.handleUpdate)
 }
 
 // handleUpdate handles an update from Telegram

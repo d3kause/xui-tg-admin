@@ -6,6 +6,7 @@ import (
 	"github.com/sirupsen/logrus"
 	telebot "gopkg.in/telebot.v3"
 
+	"xui-tg-admin/internal/commands"
 	"xui-tg-admin/internal/config"
 	"xui-tg-admin/internal/models"
 	"xui-tg-admin/internal/permissions"
@@ -66,10 +67,10 @@ func (h *DemoHandler) Handle(ctx context.Context, c telebot.Context) error {
 // initializeCommands initializes the command handlers
 func (h *DemoHandler) initializeCommands() {
 	h.commandHandlers = map[string]func(telebot.Context) error{
-		"/start":              h.handleStart,
-		"About":               h.handleAbout,
-		"Help":                h.handleHelp,
-		"Return to Main Menu": h.handleStart,
+		commands.Start:            h.handleStart,
+		commands.About:            h.handleAbout,
+		commands.Help:             h.handleHelp,
+		commands.ReturnToMainMenu: h.handleStart,
 	}
 }
 

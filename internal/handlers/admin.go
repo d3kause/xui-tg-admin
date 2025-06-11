@@ -11,6 +11,7 @@ import (
 	"github.com/sirupsen/logrus"
 	telebot "gopkg.in/telebot.v3"
 
+	"xui-tg-admin/internal/commands"
 	"xui-tg-admin/internal/config"
 	"xui-tg-admin/internal/models"
 	"xui-tg-admin/internal/permissions"
@@ -83,16 +84,16 @@ func (h *AdminHandler) Handle(ctx context.Context, c telebot.Context) error {
 // initializeCommands initializes the command handlers
 func (h *AdminHandler) initializeCommands() {
 	h.commandHandlers = map[string]func(telebot.Context) error{
-		"/start":              h.handleStart,
-		"Add Member":          h.handleAddMember,
-		"Edit Member":         h.handleEditMember,
-		"Delete Member":       h.handleDeleteMember,
-		"Online Members":      h.handleGetOnlineMembers,
-		"Network Usage":       h.handleGetUsersNetworkUsage,
-		"Detailed Usage":      h.handleGetDetailedUsersInfo,
-		"Reset Network Usage": h.handleResetUsersNetworkUsage,
-		"Return to Main Menu": h.handleStart,
-		"Cancel":              h.handleStart,
+		commands.Start:             h.handleStart,
+		commands.AddMember:         h.handleAddMember,
+		commands.EditMember:        h.handleEditMember,
+		commands.DeleteMember:      h.handleDeleteMember,
+		commands.OnlineMembers:     h.handleGetOnlineMembers,
+		commands.NetworkUsage:      h.handleGetUsersNetworkUsage,
+		commands.DetailedUsage:     h.handleGetDetailedUsersInfo,
+		commands.ResetNetworkUsage: h.handleResetUsersNetworkUsage,
+		commands.ReturnToMainMenu:  h.handleStart,
+		commands.Cancel:            h.handleStart,
 	}
 }
 
@@ -175,7 +176,7 @@ func (h *AdminHandler) handleEditMember(c telebot.Context) error {
 	}
 
 	// Add return button
-	rows = append(rows, telebot.Row{telebot.Btn{Text: "Return to Main Menu"}})
+	rows = append(rows, telebot.Row{telebot.Btn{Text: commands.ReturnToMainMenu}})
 
 	markup.Reply(rows...)
 
@@ -221,7 +222,7 @@ func (h *AdminHandler) handleDeleteMember(c telebot.Context) error {
 	}
 
 	// Add return button
-	rows = append(rows, telebot.Row{telebot.Btn{Text: "Return to Main Menu"}})
+	rows = append(rows, telebot.Row{telebot.Btn{Text: commands.ReturnToMainMenu}})
 
 	markup.Reply(rows...)
 
@@ -368,7 +369,7 @@ func (h *AdminHandler) handleResetUsersNetworkUsage(c telebot.Context) error {
 	}
 
 	// Add return button
-	rows = append(rows, telebot.Row{telebot.Btn{Text: "Return to Main Menu"}})
+	rows = append(rows, telebot.Row{telebot.Btn{Text: commands.ReturnToMainMenu}})
 
 	markup.Reply(rows...)
 
@@ -382,23 +383,13 @@ func (h *AdminHandler) handleResetUsersNetworkUsage(c telebot.Context) error {
 	return h.sendTextMessage(c, "Please select a member to reset network usage:", markup)
 }
 
-// handleSelectServer handles server selection
-func (h *AdminHandler) handleSelectServer(c telebot.Context) error {
-	return h.HandleSelectServer(c)
-}
-
-// handleChangeServer handles the Change Server command
-func (h *AdminHandler) handleChangeServer(c telebot.Context) error {
-	return h.handleSelectServer(c)
-}
-
 // processUserName processes the username input
 func (h *AdminHandler) processUserName(c telebot.Context) error {
 	// Get username from message
 	username := c.Text()
 
 	// Validate username
-	if username == "Return to Main Menu" {
+	if username == commands.ReturnToMainMenu {
 		return h.handleStart(c)
 	}
 
@@ -439,7 +430,7 @@ func (h *AdminHandler) processDuration(c telebot.Context) error {
 	durationStr := c.Text()
 
 	// Validate duration
-	if durationStr == "Return to Main Menu" {
+	if durationStr == commands.ReturnToMainMenu {
 		return h.handleStart(c)
 	}
 
@@ -513,7 +504,7 @@ func (h *AdminHandler) processSelectUser(c telebot.Context) error {
 	username := c.Text()
 
 	// Validate username
-	if username == "Return to Main Menu" {
+	if username == commands.ReturnToMainMenu {
 		return h.handleStart(c)
 	}
 
@@ -538,15 +529,15 @@ func (h *AdminHandler) processSelectUser(c telebot.Context) error {
 
 	markup.Reply(
 		telebot.Row{
-			telebot.Btn{Text: "View Config"},
-			telebot.Btn{Text: "Extend Duration"},
+			telebot.Btn{Text: commands.ViewConfig},
+			telebot.Btn{Text: commands.ExtendDuration},
 		},
 		telebot.Row{
-			telebot.Btn{Text: "Reset Traffic"},
-			telebot.Btn{Text: "Delete"},
+			telebot.Btn{Text: commands.ResetTraffic},
+			telebot.Btn{Text: commands.Delete},
 		},
 		telebot.Row{
-			telebot.Btn{Text: "Return to Main Menu"},
+			telebot.Btn{Text: commands.ReturnToMainMenu},
 		},
 	)
 
@@ -574,15 +565,15 @@ func (h *AdminHandler) processMemberAction(c telebot.Context) error {
 
 	// Handle action
 	switch action {
-	case "View Config":
+	case commands.ViewConfig:
 		return h.handleViewConfig(c, username)
-	case "Extend Duration":
+	case commands.ExtendDuration:
 		return h.handleExtendDuration(c, username)
-	case "Reset Traffic":
+	case commands.ResetTraffic:
 		return h.handleResetTraffic(c, username)
-	case "Delete":
+	case commands.Delete:
 		return h.handleConfirmDelete(c, username)
-	case "Return to Main Menu":
+	case commands.ReturnToMainMenu:
 		return h.handleStart(c)
 	default:
 		return h.sendTextMessage(c, "Invalid action. Please try again.", nil)
@@ -628,7 +619,7 @@ func (h *AdminHandler) processExtendDuration(c telebot.Context) error {
 	durationStr := c.Text()
 
 	// Validate duration
-	if durationStr == "Return to Main Menu" {
+	if durationStr == commands.ReturnToMainMenu {
 		return h.handleStart(c)
 	}
 
@@ -764,7 +755,7 @@ func (h *AdminHandler) processConfirmDeletion(c telebot.Context) error {
 	username := c.Text()
 
 	// Validate username
-	if username == "Return to Main Menu" {
+	if username == commands.ReturnToMainMenu {
 		return h.handleStart(c)
 	}
 
@@ -784,7 +775,7 @@ func (h *AdminHandler) processConfirmReset(c telebot.Context) error {
 	username := c.Text()
 
 	// Validate username
-	if username == "Return to Main Menu" {
+	if username == commands.ReturnToMainMenu {
 		return h.handleStart(c)
 	}
 
