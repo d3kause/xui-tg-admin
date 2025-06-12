@@ -862,11 +862,6 @@ func (h *AdminHandler) formatDetailedUsersReport(inbounds []models.Inbound) stri
 		upGB := float64(data.TotalUp) / (1024 * 1024 * 1024)
 		downGB := float64(data.TotalDown) / (1024 * 1024 * 1024)
 
-		expiryTime := "Never"
-		if data.ExpiryTime > 0 {
-			expiryTime = time.Unix(data.ExpiryTime/1000, 0).Format("2006-01-02 15:04")
-		}
-
 		statusText := "🔴"
 		if data.Enable {
 			statusText = "🟢"
@@ -874,9 +869,7 @@ func (h *AdminHandler) formatDetailedUsersReport(inbounds []models.Inbound) stri
 
 		sb.WriteString(fmt.Sprintf("%s <b>%s</b>\n", statusText, strings.Join(data.Emails, ", ")))
 		sb.WriteString(fmt.Sprintf("├ ⬆️ %.2f GB\n", upGB))
-		sb.WriteString(fmt.Sprintf("├ ⬇️ %.2f GB\n", downGB))
-		sb.WriteString(fmt.Sprintf("├ 📍 <i>%s</i>\n", strings.Join(data.InboundNames, ", ")))
-		sb.WriteString(fmt.Sprintf("└ ⏰ %s\n\n", expiryTime))
+		sb.WriteString(fmt.Sprintf("└ ⬇️ %.2f GB\n\n", downGB))
 	}
 
 	sb.WriteString("<b>📈 Summary</b>\n")
