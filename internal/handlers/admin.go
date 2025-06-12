@@ -252,12 +252,12 @@ func (h *AdminHandler) handleGetOnlineMembers(c telebot.Context) error {
 		message = "No users are currently online."
 	} else {
 		message = "Online users:\n\n"
-		for i, user := range onlineUsers {
-			message += fmt.Sprintf("%d. %s\n", i+1, user)
+		for _, user := range onlineUsers {
+			message += fmt.Sprintf("・%s\n", user)
 		}
 	}
 
-	return h.sendTextMessage(c, message, h.createReturnKeyboard())
+	return h.sendTextMessage(c, message, h.createMainKeyboard(permissions.Admin))
 }
 
 // handleGetUsersNetworkUsage handles the Network Usage command
@@ -830,7 +830,7 @@ func (h *AdminHandler) handleGetDetailedUsersInfo(c telebot.Context) error {
 	// Format detailed user information report
 	message := h.formatDetailedUsersReport(inbounds)
 
-	return h.sendTextMessage(c, message, h.createReturnKeyboard())
+	return h.sendTextMessage(c, message, h.createMainKeyboard(permissions.Admin))
 }
 
 // formatDetailedUsersReport formats a detailed users information report

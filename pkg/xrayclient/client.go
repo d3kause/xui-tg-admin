@@ -241,7 +241,7 @@ func (c *Client) GetOnlineUsers(ctx context.Context) ([]string, error) {
 	resp, err := c.httpClient.R().
 		SetContext(ctx).
 		SetCookies(cookies.([]*http.Cookie)).
-		Get(fmt.Sprintf("%s/xui/API/inbounds/onlines", c.serverConfig.APIURL))
+		Post(fmt.Sprintf("%s/xui/API/inbounds/onlines", c.serverConfig.APIURL))
 
 	if err != nil {
 		return nil, fmt.Errorf("get online users request failed: %w", err)

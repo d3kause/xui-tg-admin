@@ -95,19 +95,24 @@ func (h *BaseHandler) createMainKeyboard(accessType permissions.AccessType) *tel
 		rows = []telebot.Row{
 			{
 				telebot.Btn{Text: commands.AddMember},
-				telebot.Btn{Text: commands.EditMember},
-			},
-			{
-				telebot.Btn{Text: commands.DeleteMember},
 				telebot.Btn{Text: commands.OnlineMembers},
 			},
 			{
-				telebot.Btn{Text: commands.NetworkUsage},
+				telebot.Btn{Text: commands.EditMember},
+				//	telebot.Btn{Text: commands.DeleteMember}, // TODO: go to edit member
 				telebot.Btn{Text: commands.DetailedUsage},
 			},
+
 			{
 				telebot.Btn{Text: commands.ResetNetworkUsage},
 			},
+			//	{
+			//	telebot.Btn{Text: commands.NetworkUsage}, TODO: Go to detailed usage
+			//		telebot.Btn{Text: commands.DetailedUsage},
+			////	},
+			//{
+			//	telebot.Btn{Text: commands.ResetNetworkUsage},
+			//},
 		}
 	case permissions.Member:
 		rows = []telebot.Row{
