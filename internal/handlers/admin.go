@@ -867,7 +867,9 @@ func (h *AdminHandler) formatDetailedUsersReport(inbounds []models.Inbound) stri
 			statusText = "🟢"
 		}
 
-		sb.WriteString(fmt.Sprintf("%s <b>%s</b>\n", statusText, strings.Join(data.Emails, ", ")))
+		// Group similar emails
+		groupedEmails := h.groupSimilarEmails(data.Emails)
+		sb.WriteString(fmt.Sprintf("%s <b>%s</b>\n", statusText, strings.Join(groupedEmails, ", ")))
 		sb.WriteString(fmt.Sprintf("├ ⬆️ %.2f GB\n", upGB))
 		sb.WriteString(fmt.Sprintf("└ ⬇️ %.2f GB\n\n", downGB))
 	}
@@ -985,4 +987,177 @@ func (h *AdminHandler) createEmailToSubIDMapping(inbounds []models.Inbound) map[
 	}
 
 	return emailToSubID
+}
+
+// groupSimilarEmails groups emails if the difference in local part length is less than 3 characters
+func (h *AdminHandler) groupSimilarEmails(emails []string) []string {
+	if len(emails) <= 1 {
+		return emails
+	}
+
+	// Check if all emails should be grouped together
+	if h.shouldGroupEmails(emails) {
+		// Return the common name for all emails
+		return []string{h.generateGroupName(emails)}
+	}
+
+	// Return original emails if they shouldn't be grouped
+	return emails
+}
+
+// shouldGroupEmails checks if emails should be grouped based on length difference < 3 chars
+func (h *AdminHandler) shouldGroupEmails(emails []string) bool {
+	if len(emails) <= 1 {
+		return false
+	}
+
+	// Extract local parts and check domain consistency
+	var localParts []string
+	var domain string
+
+	for _, email := range emails {
+		parts := strings.Split(email, "@")
+		if len(parts) != 2 {
+			// Если нет @ символа, значит это просто имя пользователя (без домена)
+			localParts = append(localParts, email)
+			continue
+		}
+
+		if domain == "" {
+			domain = parts[1]
+		} else if domain != parts[1] {
+			return false // Different domains
+		}
+
+		localParts = append(localParts, parts[0])
+	}
+
+	// Check if length differences are less than 3 characters
+	minLen := len(localParts[0])
+	maxLen := len(localParts[0])
+
+	for _, local := range localParts[1:] {
+		if len(local) < minLen {
+			minLen = len(local)
+		}
+		if len(local) > maxLen {
+			maxLen = len(local)
+		}
+	}
+
+	// Group if difference is less than 3 characters
+	return (maxLen - minLen) < 3
+}
+
+// generateGroupName generates a common name for grouped emails by removing numeric suffixes
+func (h *AdminHandler) generateGroupName(emails []string) string {
+	if len(emails) <= 1 {
+		return emails[0]
+	}
+
+	// Extract local parts (usernames) from emails
+	var localParts []string
+	var domain string
+	hasEmails := false
+
+	for _, email := range emails {
+		parts := strings.Split(email, "@")
+		if len(parts) == 2 {
+			// This is a proper email
+			hasEmails = true
+			if domain == "" {
+				domain = parts[1]
+			}
+			localParts = append(localParts, parts[0])
+		} else {
+			// This is just a username
+			localParts = append(localParts, email)
+		}
+	}
+
+	if len(localParts) == 0 {
+		return strings.Join(emails, ", ")
+	}
+
+	// Find common prefix by removing numeric suffixes
+	commonPart := h.findCommonPartWithoutSuffix(localParts)
+
+	// Return the common part, with domain if it's an email format
+	if hasEmails && domain != "" {
+		return commonPart + "@" + domain
+	}
+	return commonPart
+}
+
+// findCommonPartWithoutSuffix finds the common part of usernames by removing numeric suffixes
+func (h *AdminHandler) findCommonPartWithoutSuffix(names []string) string {
+	if len(names) == 0 {
+		return ""
+	}
+	if len(names) == 1 {
+		return h.removeNumericSuffix(names[0])
+	}
+
+	// Remove numeric suffixes from all names and find the longest common prefix
+	var cleanedNames []string
+	for _, name := range names {
+		cleanedNames = append(cleanedNames, h.removeNumericSuffix(name))
+	}
+
+	// Find the longest common prefix among cleaned names
+	commonPrefix := cleanedNames[0]
+	for _, cleaned := range cleanedNames[1:] {
+		commonPrefix = h.findLongestCommonPrefix(commonPrefix, cleaned)
+	}
+
+	// If common prefix is too short, use the cleaned version of the first name
+	if len(commonPrefix) < 3 {
+		return cleanedNames[0]
+	}
+
+	return commonPrefix
+}
+
+// removeNumericSuffix removes numeric suffixes like -2, -3, etc.
+func (h *AdminHandler) removeNumericSuffix(name string) string {
+	// Find the last dash followed by numbers
+	for i := len(name) - 1; i >= 0; i-- {
+		if name[i] == '-' {
+			// Check if everything after the dash is numeric
+			suffix := name[i+1:]
+			if h.isNumeric(suffix) {
+				return name[:i]
+			}
+			break
+		}
+	}
+	return name
+}
+
+// isNumeric checks if a string contains only digits
+func (h *AdminHandler) isNumeric(s string) bool {
+	if len(s) == 0 {
+		return false
+	}
+	for _, r := range s {
+		if r < '0' || r > '9' {
+			return false
+		}
+	}
+	return true
+}
+
+// findLongestCommonPrefix finds the longest common prefix of two strings
+func (h *AdminHandler) findLongestCommonPrefix(s1, s2 string) string {
+	minLen := len(s1)
+	if len(s2) < minLen {
+		minLen = len(s2)
+	}
+
+	for i := 0; i < minLen; i++ {
+		if s1[i] != s2[i] {
+			return s1[:i]
+		}
+	}
+	return s1[:minLen]
 }
