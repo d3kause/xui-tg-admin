@@ -841,8 +841,22 @@ func (h *AdminHandler) formatDetailedUsersReport(inbounds []models.Inbound) stri
 		return "No active subscriptions found."
 	}
 
+	var totalUp, totalDown int64
+	activeCount := 0
+
+	for _, data := range subscriptionSummary {
+		totalUp += data.TotalUp
+		totalDown += data.TotalDown
+		if data.Enable {
+			activeCount++
+		}
+	}
+
 	var sb strings.Builder
 	sb.WriteString("<b>📊 Detailed Subscription Information</b>\n\n")
+
+	totalUpGB := float64(totalUp) / (1024 * 1024 * 1024)
+	totalDownGB := float64(totalDown) / (1024 * 1024 * 1024)
 
 	for _, data := range subscriptionSummary {
 		upGB := float64(data.TotalUp) / (1024 * 1024 * 1024)
@@ -864,6 +878,11 @@ func (h *AdminHandler) formatDetailedUsersReport(inbounds []models.Inbound) stri
 		sb.WriteString(fmt.Sprintf("├ 📍 <i>%s</i>\n", strings.Join(data.InboundNames, ", ")))
 		sb.WriteString(fmt.Sprintf("└ ⏰ %s\n\n", expiryTime))
 	}
+
+	sb.WriteString("<b>📈 Summary</b>\n")
+	sb.WriteString(fmt.Sprintf("├ 👥 Total: %d subscriptions (%d active)\n", len(subscriptionSummary), activeCount))
+	sb.WriteString(fmt.Sprintf("├ ⬆️ Total Upload: %.2f GB\n", totalUpGB))
+	sb.WriteString(fmt.Sprintf("└ ⬇️ Total Download: %.2f GB\n\n", totalDownGB))
 
 	return sb.String()
 }
