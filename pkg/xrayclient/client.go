@@ -155,18 +155,42 @@ func (c *Client) AddClientToInbound(ctx context.Context, inboundID int, client m
 
 	cookies, _ := c.cookieCache.Get("session")
 
+	// Create settings object with clients array
+	settings := map[string]interface{}{
+		"clients": []map[string]interface{}{client.ToDictionary()},
+	}
+
+	// Convert settings to JSON string
+	settingsJSON, err := json.Marshal(settings)
+	if err != nil {
+		c.logger.Errorf("Failed to marshal settings: %v", err)
+		return fmt.Errorf("failed to marshal settings: %w", err)
+	}
+
+	// Create request body
+	requestBody := map[string]interface{}{
+		"id":       inboundID,
+		"settings": string(settingsJSON),
+	}
+
+	// Log request details
+	c.logger.Infof("Adding client to inbound %d with email: %s", inboundID, client.Email)
+	c.logger.Debugf("Request body: %+v", requestBody)
+
 	resp, err := c.httpClient.R().
 		SetContext(ctx).
 		SetCookies(cookies.([]*http.Cookie)).
-		SetBody(map[string]interface{}{
-			"id":     inboundID,
-			"client": client.ToDictionary(),
-		}).
+		SetBody(requestBody).
 		Post(fmt.Sprintf("%s/xui/API/inbounds/addClient", c.serverConfig.APIURL))
 
 	if err != nil {
+		c.logger.Errorf("Add client request failed: %v", err)
 		return fmt.Errorf("add client request failed: %w", err)
 	}
+
+	// Log response details
+	c.logger.Debugf("Response status: %d", resp.StatusCode())
+	c.logger.Debugf("Response body: %s", string(resp.Body()))
 
 	if resp.StatusCode() != http.StatusOK {
 		// If unauthorized, try to login again
@@ -174,18 +198,28 @@ func (c *Client) AddClientToInbound(ctx context.Context, inboundID int, client m
 			c.cookieCache.Delete("session")
 			return c.AddClientToInbound(ctx, inboundID, client)
 		}
+		c.logger.Errorf("Add client failed with status code %d, response body: %s", resp.StatusCode(), string(resp.Body()))
 		return fmt.Errorf("add client failed with status code: %d", resp.StatusCode())
+	}
+
+	// Check if response body is empty
+	if len(resp.Body()) == 0 {
+		c.logger.Errorf("Empty response body from server")
+		return fmt.Errorf("empty response from server")
 	}
 
 	var apiResp XrayAPIResponse
 	if err := json.Unmarshal(resp.Body(), &apiResp); err != nil {
-		return fmt.Errorf("failed to parse add client response: %w", err)
+		c.logger.Errorf("Failed to parse add client response: %v, response body: %s", err, string(resp.Body()))
+		return fmt.Errorf("failed to parse add client response: %w, body: %s", err, string(resp.Body()))
 	}
 
 	if !apiResp.Success {
+		c.logger.Errorf("Add client failed with message: %s", apiResp.Msg)
 		return fmt.Errorf("add client failed: %s", apiResp.Msg)
 	}
 
+	c.logger.Infof("Successfully added client %s to inbound %d", client.Email, inboundID)
 	return nil
 }
 

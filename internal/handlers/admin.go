@@ -419,9 +419,20 @@ func (h *AdminHandler) processUserName(c telebot.Context) error {
 		return err
 	}
 
-	// Show return keyboard
-	markup := h.createReturnKeyboard()
-	return h.sendTextMessage(c, "Please enter the duration in days (e.g., 30):", markup)
+	// Create keyboard with Infinite option
+	markup := &telebot.ReplyMarkup{
+		ResizeKeyboard: true,
+	}
+	markup.Reply(
+		telebot.Row{
+			telebot.Btn{Text: commands.Infinite},
+		},
+		telebot.Row{
+			telebot.Btn{Text: commands.ReturnToMainMenu},
+		},
+	)
+
+	return h.sendTextMessage(c, "Enter the duration in days (e.g., 30) or choose infinite duration:", markup)
 }
 
 // processDuration processes the duration input
@@ -432,12 +443,6 @@ func (h *AdminHandler) processDuration(c telebot.Context) error {
 	// Validate duration
 	if durationStr == commands.ReturnToMainMenu {
 		return h.handleStart(c)
-	}
-
-	// Parse duration
-	days, err := strconv.Atoi(durationStr)
-	if err != nil {
-		return h.sendTextMessage(c, "Invalid duration. Please enter a number of days (e.g., 30):", nil)
 	}
 
 	// Get user state
@@ -452,50 +457,139 @@ func (h *AdminHandler) processDuration(c telebot.Context) error {
 		return h.sendTextMessage(c, "Username not found. Please try again.", nil)
 	}
 
-	username := *userState.Payload
+	baseUsername := *userState.Payload
 
-	// Calculate expiry time
-	expiryTime := time.Now().Add(time.Duration(days)*24*time.Hour).Unix() * 1000
-
-	// Create client
-	client := models.Client{
-		ID:         username,
-		Enable:     true,
-		Email:      username,
-		TotalGB:    1024, // 1 TB
-		LimitIP:    0,    // No limit
-		ExpiryTime: &expiryTime,
-		TgID:       fmt.Sprintf("%d", c.Sender().ID),
-		SubID:      models.GenerateSubID(),
+	// Get inbounds to find available ones
+	inbounds, err := h.xrayService.GetInbounds(context.Background())
+	if err != nil {
+		h.logger.Errorf("Failed to get inbounds: %v", err)
+		return h.sendTextMessage(c, fmt.Sprintf("Failed to get inbounds: %v", err), nil)
 	}
 
-	// Add client to inbound
-	err = h.xrayService.AddClient(context.Background(), 1, client)
-	if err != nil {
-		h.logger.Errorf("Failed to add client: %v", err)
-		return h.sendTextMessage(c, fmt.Sprintf("Failed to add client: %v", err), nil)
+	if len(inbounds) == 0 {
+		return h.sendTextMessage(c, "No inbounds available. Please contact administrator.", nil)
 	}
 
-	// Get subscription URL
-	subURL, err := h.xrayService.GetSubscriptionURL(context.Background(), username)
-	if err != nil {
-		h.logger.Errorf("Failed to get subscription URL: %v", err)
-		return h.sendTextMessage(c, fmt.Sprintf("Client added, but failed to get subscription URL: %v", err), nil)
+	// Find all enabled inbounds
+	var enabledInbounds []models.Inbound
+	for _, inbound := range inbounds {
+		if inbound.Enable {
+			enabledInbounds = append(enabledInbounds, inbound)
+		}
+	}
+
+	if len(enabledInbounds) == 0 {
+		return h.sendTextMessage(c, "No enabled inbounds available. Please contact administrator.", nil)
+	}
+
+	// Calculate expiry time (in milliseconds)
+	var expiryTime int64
+	if durationStr == commands.Infinite {
+		// For infinite duration, set expiry time to 0 (no expiration)
+		expiryTime = 0
+	} else {
+		// Parse duration
+		days, err := strconv.Atoi(durationStr)
+		if err != nil {
+			return h.sendTextMessage(c, "Invalid duration. Please enter a number of days (e.g., 30) or choose infinite duration:", nil)
+		}
+		expiryTime = time.Now().Add(time.Duration(days) * 24 * time.Hour).UnixMilli()
+	}
+
+	// Generate base fingerprint
+	baseFingerprint := fmt.Sprintf("%x", time.Now().UnixNano())
+
+	// Generate common subId for all inbounds
+	commonSubId := models.GenerateSubID()
+
+	// Add client to all enabled inbounds
+	var addErrors []string
+	var addedToAny bool
+	var createdEmails []string
+
+	for i, inbound := range enabledInbounds {
+		// Create unique email for this inbound
+		email := fmt.Sprintf("%s-%d", baseUsername, i+1)
+		fingerprint := fmt.Sprintf("%s-%d", baseFingerprint, i+1)
+
+		// Create client with unique email but common subId
+		client := models.Client{
+			ID:          email,
+			Enable:      true,
+			Email:       email,
+			TotalGB:     0, // Unlimited traffic
+			LimitIP:     0, // No IP limit
+			ExpiryTime:  &expiryTime,
+			TgID:        fmt.Sprintf("%d", c.Sender().ID),
+			SubID:       commonSubId,
+			Fingerprint: fingerprint,
+		}
+
+		err = h.xrayService.AddClient(context.Background(), inbound.ID, client)
+		if err != nil {
+			h.logger.Errorf("Failed to add client to inbound %d: %v", inbound.ID, err)
+			addErrors = append(addErrors, fmt.Sprintf("Inbound %d: %v", inbound.ID, err))
+			continue
+		}
+		addedToAny = true
+		createdEmails = append(createdEmails, email)
+		h.logger.Infof("Successfully added client %s to inbound %d", email, inbound.ID)
+	}
+
+	// If we couldn't add the client to any inbound, return error
+	if !addedToAny {
+		return h.sendTextMessage(c, fmt.Sprintf("Failed to add client to any inbound:\n%s", strings.Join(addErrors, "\n")), nil)
+	}
+
+	// Get subscription URL using the first created email (they all share the same SubID)
+	var subscriptionInfo strings.Builder
+	subscriptionInfo.WriteString(fmt.Sprintf("Client added successfully!\n\nBase username: %s\n", baseUsername))
+
+	if expiryTime == 0 {
+		subscriptionInfo.WriteString("Duration: ∞ (infinite)\n")
+	} else {
+		subscriptionInfo.WriteString(fmt.Sprintf("Duration: %s days\nExpiry: %s\n",
+			durationStr,
+			time.Unix(expiryTime/1000, 0).Format("2006-01-02")))
+	}
+
+	subscriptionInfo.WriteString("Traffic limit: Unlimited\n")
+
+	subscriptionInfo.WriteString("\nCreated accounts:\n")
+	for _, email := range createdEmails {
+		subscriptionInfo.WriteString(fmt.Sprintf("\n- %s", email))
+	}
+
+	// Get subscription URL (using first email since they all share same SubID)
+	if len(createdEmails) > 0 {
+		// Format subscription URL correctly with the SubID
+		subURL := fmt.Sprintf("https://iris.xele.one:2096/sub/%s?name=%s", commonSubId, commonSubId)
+		subscriptionInfo.WriteString(fmt.Sprintf("\n\nLink to connect: %s", subURL))
+	}
+
+	// Add warning if there were any errors
+	if len(addErrors) > 0 {
+		subscriptionInfo.WriteString(fmt.Sprintf("\n\nWarning: Failed to add to some inbounds:\n%s\n", strings.Join(addErrors, "\n")))
 	}
 
 	// Send success message
-	err = h.sendTextMessage(c, fmt.Sprintf("Client added successfully!\n\nUsername: %s\nDuration: %d days\nExpiry: %s\n\nSubscription URL: %s",
-		username,
-		days,
-		time.Unix(expiryTime/1000, 0).Format("2006-01-02"),
-		subURL),
-		h.createReturnKeyboard())
+	err = h.sendTextMessage(c, subscriptionInfo.String(), h.createReturnKeyboard())
 	if err != nil {
 		return err
 	}
 
-	// Send QR code
-	return h.sendQRCode(c, subURL)
+	// Send QR code for subscription URL (only once since it's the same for all emails)
+	if len(createdEmails) > 0 {
+		// Format subscription URL correctly with the SubID
+		subURL := fmt.Sprintf("https://iris.xele.one:2096/sub/%s?name=%s", commonSubId, commonSubId)
+		if err := h.sendTextMessage(c, "QR code for subscription:", nil); err != nil {
+			h.logger.Errorf("Failed to send QR code message: %v", err)
+		} else if err := h.sendQRCode(c, subURL); err != nil {
+			h.logger.Errorf("Failed to send QR code: %v", err)
+		}
+	}
+
+	return nil
 }
 
 // processSelectUser processes the user selection
