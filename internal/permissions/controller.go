@@ -31,9 +31,9 @@ func NewController(adminIDs []int64, logger *logrus.Logger) *PermissionControlle
 	for _, id := range adminIDs {
 		adminIDMap[id] = true
 	}
-	
+
 	logger.Infof("Initialized permission controller with %d admins", len(adminIDs))
-	
+
 	return &PermissionController{
 		adminIDs: adminIDMap,
 		logger:   logger,
@@ -45,7 +45,7 @@ func (p *PermissionController) GetAccessType(userID int64) AccessType {
 	if p.IsAdmin(userID) {
 		return Admin
 	}
-	
+
 	// For now, all non-admin users are considered members
 	// This can be extended to support demo users or other access types
 	return Member

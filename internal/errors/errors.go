@@ -52,8 +52,8 @@ func (e *StateError) Error() string {
 
 // PermissionError represents an error related to permissions
 type PermissionError struct {
-	UserID      int64
-	AccessType  string
+	UserID         int64
+	AccessType     string
 	RequiredAccess string
 }
 

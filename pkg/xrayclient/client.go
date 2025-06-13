@@ -14,6 +14,7 @@ import (
 	"github.com/sirupsen/logrus"
 
 	"xui-tg-admin/internal/config"
+	"xui-tg-admin/internal/constants"
 	"xui-tg-admin/internal/models"
 )
 
@@ -35,16 +36,16 @@ type XrayAPIResponse struct {
 // NewClient creates a new X-ray API client
 func NewClient(serverConfig config.ServerConfig, logger *logrus.Logger) *Client {
 	httpClient := resty.New().
-		SetTimeout(30 * time.Second).
-		SetRetryCount(3).
-		SetRetryWaitTime(5 * time.Second).
-		SetRetryMaxWaitTime(20 * time.Second).
+		SetTimeout(constants.DefaultTimeout * time.Second).
+		SetRetryCount(constants.DefaultRetryCount).
+		SetRetryWaitTime(constants.DefaultRetryWaitTime * time.Second).
+		SetRetryMaxWaitTime(constants.DefaultRetryMaxWaitTime * time.Second).
 		SetTLSClientConfig(&tls.Config{InsecureSkipVerify: true})
 
 	return &Client{
 		httpClient:   httpClient,
 		serverConfig: serverConfig,
-		cookieCache:  cache.New(30*time.Minute, 10*time.Minute),
+		cookieCache:  cache.New(constants.CacheExpiration*time.Minute, constants.CacheCleanupInterval*time.Minute),
 		logger:       logger,
 	}
 }
@@ -75,7 +76,7 @@ func (c *Client) Login(ctx context.Context) error {
 	if resp.StatusCode() != http.StatusOK {
 		c.logger.Errorf("Login failed - URL: %s/login, Status: %d, Response: %s",
 			c.serverConfig.APIURL, resp.StatusCode(), string(resp.Body()))
-		return fmt.Errorf("login failed with status code: %d", resp.StatusCode())
+		return fmt.Errorf("login failed with status code: %d, response: %s", resp.StatusCode(), string(resp.Body()))
 	}
 
 	var apiResp XrayAPIResponse
@@ -116,12 +117,12 @@ func (c *Client) GetInbounds(ctx context.Context) ([]models.Inbound, error) {
 	}
 
 	if resp.StatusCode() != http.StatusOK {
-		// If unauthorized, try to login again
 		if resp.StatusCode() == http.StatusUnauthorized {
 			c.cookieCache.Delete("session")
 			return c.GetInbounds(ctx)
 		}
-		return nil, fmt.Errorf("get inbounds failed with status code: %d", resp.StatusCode())
+		c.logger.Errorf("Get inbounds failed - Status: %d, Response: %s", resp.StatusCode(), string(resp.Body()))
+		return nil, fmt.Errorf("get inbounds failed with status code: %d, response: %s", resp.StatusCode(), string(resp.Body()))
 	}
 
 	var apiResp XrayAPIResponse

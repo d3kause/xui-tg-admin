@@ -10,6 +10,7 @@ import (
 	"github.com/sirupsen/logrus"
 
 	"xui-tg-admin/internal/config"
+	"xui-tg-admin/internal/constants"
 	"xui-tg-admin/internal/permissions"
 	"xui-tg-admin/internal/services"
 	"xui-tg-admin/pkg/telegrambot"
@@ -80,7 +81,7 @@ func setupLogger() *logrus.Logger {
 	// Set formatter
 	logger.SetFormatter(&logrus.TextFormatter{
 		FullTimestamp:   true,
-		TimestampFormat: "2006-01-02 15:04:05",
+		TimestampFormat: constants.TimestampFormat,
 	})
 
 	return logger
