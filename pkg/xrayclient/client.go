@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/go-resty/resty/v2"
@@ -232,37 +233,130 @@ func (c *Client) RemoveClients(ctx context.Context, emails []string) error {
 
 	cookies, _ := c.cookieCache.Get("session")
 
+	// Get all inbounds to find clients
+	inbounds, err := c.GetInbounds(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to get inbounds: %w", err)
+	}
+
+	// Track deletion results
+	var deletionErrors []string
+	successfullyDeleted := false
+
+	// For each email, find and delete from all inbounds
+	for _, email := range emails {
+		emailDeleted := false
+
+		// Search through all inbounds
+		for _, inbound := range inbounds {
+			// Parse inbound settings to find client UUID
+			var settings models.InboundSettings
+			if err := json.Unmarshal([]byte(inbound.Settings), &settings); err != nil {
+				c.logger.Errorf("Failed to parse settings for inbound %d: %v", inbound.ID, err)
+				continue
+			}
+
+			// Find client by email
+			for _, client := range settings.Clients {
+				// Ищем по базовому имени (без постфикса)
+				if strings.HasPrefix(client.Email, email) && (len(client.Email) == len(email) || client.Email[len(email)] == '-') {
+					c.logger.Infof("Found matching client: %s in inbound %d", client.Email, inbound.ID)
+
+					// Extract client UUID from client object
+					// The client UUID is typically stored in the client object
+					// We need to find the actual UUID field
+					clientUUID := c.extractClientUUID(client, client.Email)
+					if clientUUID == "" {
+						c.logger.Errorf("Failed to extract UUID for client %s in inbound %d", client.Email, inbound.ID)
+						continue
+					}
+
+					// Delete client using the correct API endpoint
+					err := c.deleteClientFromInbound(ctx, cookies.([]*http.Cookie), inbound.ID, clientUUID)
+					if err != nil {
+						c.logger.Errorf("Failed to delete client %s from inbound %d: %v", client.Email, inbound.ID, err)
+						deletionErrors = append(deletionErrors, fmt.Sprintf("Failed to delete %s from inbound %d: %v", client.Email, inbound.ID, err))
+					} else {
+						c.logger.Infof("Successfully deleted client %s from inbound %d", client.Email, inbound.ID)
+						emailDeleted = true
+						successfullyDeleted = true
+					}
+				}
+			}
+		}
+
+		if !emailDeleted {
+			c.logger.Warnf("Client %s not found in any inbound", email)
+			deletionErrors = append(deletionErrors, fmt.Sprintf("Client %s not found in any inbound", email))
+		}
+	}
+
+	// Return error if no clients were successfully deleted
+	if !successfullyDeleted {
+		c.logger.Errorf("No clients were successfully deleted. Errors: %s", strings.Join(deletionErrors, "; "))
+		return fmt.Errorf("failed to delete any clients: %s", strings.Join(deletionErrors, "; "))
+	}
+
+	// Log warnings for any errors that occurred
+	if len(deletionErrors) > 0 {
+		c.logger.Warnf("Some deletion errors occurred: %s", strings.Join(deletionErrors, "; "))
+	}
+
+	c.logger.Infof("RemoveClients operation completed successfully")
+	return nil
+}
+
+// deleteClientFromInbound deletes a client from a specific inbound using the correct API endpoint
+func (c *Client) deleteClientFromInbound(ctx context.Context, cookies []*http.Cookie, inboundID int, clientUUID string) error {
+	c.logger.Debugf("Deleting client with UUID %s from inbound %d", clientUUID, inboundID)
+
 	resp, err := c.httpClient.R().
 		SetContext(ctx).
-		SetCookies(cookies.([]*http.Cookie)).
-		SetBody(map[string]interface{}{
-			"emails": emails,
-		}).
-		Post(fmt.Sprintf("%s/xui/API/inbounds/delClient", c.serverConfig.APIURL))
+		SetCookies(cookies).
+		Post(fmt.Sprintf("%s/xui/API/inbounds/%d/delClient/%s", c.serverConfig.APIURL, inboundID, clientUUID))
 
 	if err != nil {
-		return fmt.Errorf("remove clients request failed: %w", err)
+		return fmt.Errorf("delete client request failed: %w", err)
 	}
+
+	c.logger.Debugf("Delete client response status: %d, body: %s", resp.StatusCode(), string(resp.Body()))
 
 	if resp.StatusCode() != http.StatusOK {
 		// If unauthorized, try to login again
 		if resp.StatusCode() == http.StatusUnauthorized {
 			c.cookieCache.Delete("session")
-			return c.RemoveClients(ctx, emails)
+			return c.deleteClientFromInbound(ctx, cookies, inboundID, clientUUID)
 		}
-		return fmt.Errorf("remove clients failed with status code: %d", resp.StatusCode())
+		return fmt.Errorf("delete client failed with status code: %d, response: %s", resp.StatusCode(), string(resp.Body()))
 	}
 
 	var apiResp XrayAPIResponse
 	if err := json.Unmarshal(resp.Body(), &apiResp); err != nil {
-		return fmt.Errorf("failed to parse remove clients response: %w", err)
+		return fmt.Errorf("failed to parse delete client response: %w", err)
 	}
 
 	if !apiResp.Success {
-		return fmt.Errorf("remove clients failed: %s", apiResp.Msg)
+		return fmt.Errorf("delete client failed: %s", apiResp.Msg)
 	}
 
 	return nil
+}
+
+// extractClientUUID extracts the UUID from a client object
+// This method needs to be implemented based on the actual structure of the client object
+func (c *Client) extractClientUUID(client models.InboundClient, email string) string {
+	// Use client.ID as UUID, as in the working C# implementation
+	if client.ID != "" {
+		return client.ID
+	}
+
+	// Fallback to SubID if ID is empty
+	if client.SubID != "" {
+		return client.SubID
+	}
+
+	// If both are empty, use email as fallback
+	return email
 }
 
 // GetOnlineUsers gets the online users

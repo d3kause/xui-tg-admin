@@ -36,6 +36,7 @@ type InboundSettings struct {
 
 // InboundClient represents a client in inbound settings
 type InboundClient struct {
+	ID         string `json:"id"`
 	Email      string `json:"email"`
 	Enable     bool   `json:"enable"`
 	ExpiryTime int64  `json:"expiryTime"`

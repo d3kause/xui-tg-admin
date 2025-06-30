@@ -145,6 +145,14 @@ func (h *AdminHandler) handleAddMember(c telebot.Context) error {
 	return h.sendTextMessage(c, "Please enter the username for the new member:", markup)
 }
 
+// baseUsername возвращает имя пользователя без постфикса
+func baseUsername(email string) string {
+	if idx := strings.Index(email, "-"); idx > 0 {
+		return email[:idx]
+	}
+	return email
+}
+
 // handleEditMember handles the Edit Member command
 func (h *AdminHandler) handleEditMember(c telebot.Context) error {
 
@@ -173,7 +181,7 @@ func (h *AdminHandler) handleEditMember(c telebot.Context) error {
 
 	var rows []telebot.Row
 	for _, name := range members {
-		rows = append(rows, telebot.Row{telebot.Btn{Text: name}})
+		rows = append(rows, telebot.Row{telebot.Btn{Text: baseUsername(name)}})
 	}
 
 	// Add return button
@@ -219,7 +227,7 @@ func (h *AdminHandler) handleDeleteMember(c telebot.Context) error {
 
 	var rows []telebot.Row
 	for _, name := range members {
-		rows = append(rows, telebot.Row{telebot.Btn{Text: name}})
+		rows = append(rows, telebot.Row{telebot.Btn{Text: baseUsername(name)}})
 	}
 
 	// Add return button
@@ -603,7 +611,13 @@ func (h *AdminHandler) handleResetTraffic(c telebot.Context, username string) er
 
 // handleConfirmDelete handles the Delete action
 func (h *AdminHandler) handleConfirmDelete(c telebot.Context, username string) error {
-	// Show confirm keyboard
+	// Установить состояние подтверждения удаления
+	err := h.stateService.WithConversationState(c.Sender().ID, models.AwaitConfirmMemberDeletion)
+	if err != nil {
+		h.logger.Errorf("Failed to set state: %v", err)
+		return err
+	}
+	// Показать клавиатуру подтверждения
 	markup := h.createConfirmKeyboard()
 	return h.sendTextMessage(c, fmt.Sprintf("Are you sure you want to delete %s?", username), markup)
 }
