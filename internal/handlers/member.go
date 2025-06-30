@@ -88,6 +88,12 @@ func (h *MemberHandler) getButtonCommand(text string) string {
 		return commands.Confirm
 	case "❌ " + commands.Cancel:
 		return commands.Cancel
+	case "🔗 " + commands.ViewConfig:
+		return commands.ViewConfig
+	case "🔄 " + commands.ResetTraffic:
+		return commands.ResetTraffic
+	case "🗑️ " + commands.Delete:
+		return commands.Delete
 	}
 
 	// For other buttons, try to extract command after emoji

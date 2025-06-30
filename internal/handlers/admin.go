@@ -108,6 +108,12 @@ func (h *AdminHandler) getButtonCommand(text string) string {
 		return commands.Confirm
 	case "❌ " + commands.Cancel:
 		return commands.Cancel
+	case "🔗 " + commands.ViewConfig:
+		return commands.ViewConfig
+	case "🔄 " + commands.ResetTraffic:
+		return commands.ResetTraffic
+	case "🗑️ " + commands.Delete:
+		return commands.Delete
 	}
 
 	// For other buttons, try to extract command after emoji
@@ -497,8 +503,11 @@ func (h *AdminHandler) processMemberAction(c telebot.Context) error {
 
 	username := *userState.Payload
 
+	// Extract command from button text
+	command := h.getButtonCommand(action)
+
 	// Handle action
-	switch action {
+	switch command {
 	case commands.ViewConfig:
 		return h.handleViewConfig(c, username)
 	case commands.ResetTraffic:
