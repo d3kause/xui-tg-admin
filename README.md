@@ -1,246 +1,292 @@
-# X-UI Telegram Bot
+# 🚀 X-UI Telegram Admin Bot
 
-A Telegram bot for managing X-ray VPN panel users with role-based access control and comprehensive user management features.
+<div align="center">
 
-## Features
+![Go Version](https://img.shields.io/badge/Go-1.24+-blue.svg)
+![License](https://img.shields.io/badge/License-MIT-green.svg)
+![Telegram](https://img.shields.io/badge/Telegram-Bot-blue.svg)
+![X-Ray](https://img.shields.io/badge/X--Ray-Panel-orange.svg)
 
-- X-ray panel management via REST API
-- Telegram bot with role-based access (Admin/Member/Demo)
-- User creation, deletion, and traffic management
-- QR code generation for VPN configurations
-- Session-based conversation state management
-- Detailed traffic usage statistics
-- Automatic authentication and session caching
+**Powerful Telegram bot for managing X-UI panel with role-based access and advanced features**
 
-## Requirements
+[🚀 Quick Start](#quick-start) • [📋 Features](#features) • [⚙️ Installation](#installation) • [🔧 Configuration](#configuration) • [📖 Usage](#usage)
 
-- Go 1.24 or higher
-- Docker and Docker Compose (for containerized deployment)
-- X-ray panel with API access
+</div>
 
-## Installation
+---
 
-### Using Docker (Recommended)
+## 🎯 What is this?
 
-1. Clone the repository:
-   ```bash
-   git clone https://github.com/yourusername/xui-tg-admin.git
-   cd xui-tg-admin
-   ```
+**X-UI Telegram Admin Bot** is a modern solution for managing VPN servers through Telegram. The bot provides full control over the X-UI panel directly from the messenger with an intuitive interface and role-based access system.
 
-2. Create a `.env` file with your configuration:
-   ```env
-   TG_TOKEN=your_telegram_bot_token
-   TG_ADMIN_IDS=123456789,987654321
-   XRAY_USER=admin
-   XRAY_PASSWORD=password123
-   XRAY_API_URL=http://localhost:8080/api
-   XRAY_SUB_URL_PREFIX=http://localhost:8080/sub
-   LOG_LEVEL=info
-   ```
+### 🌟 Key advantages
 
-3. Build and start the container:
-   ```bash
-   docker-compose up -d
-   ```
+- **🔐 Role-based system**: Admin, User, Demo mode
+- **📱 User-friendly interface**: Intuitive buttons and menus
+- **⚡ Fast operation**: Session caching and optimized requests
+- **🔄 Automation**: Bulk operations and automatic management
+- **📊 Monitoring**: Real-time traffic statistics
+- **🔒 Security**: Access control verification and data validation
 
-### Manual Installation
+---
 
-1. Clone the repository:
-   ```bash
-   git clone https://github.com/yourusername/xui-tg-admin.git
-   cd xui-tg-admin
-   ```
+## 📋 Features
 
-2. Install dependencies:
-   ```bash
-   go mod download
-   ```
+### 👑 Administrator
+- ✅ **User creation** with expiration time settings
+- 🔄 **Traffic management** (reset, monitoring)
+- 👥 **Online users view**
+- 📊 **Detailed usage statistics**
+- 🗑️ **User deletion** with confirmation
+- 🔗 **QR code generation** for configurations
+- ⚙️ **Bulk operations** (reset traffic for all users)
 
-3. Build the application:
-   ```bash
-   go build -o bot ./cmd/bot
-   ```
+### 👤 User
+- 🔗 **View own configurations**
+- 📱 **Get QR codes** for connection
+- 📊 **Traffic monitoring**
 
-4. Set environment variables:
-   ```bash
-   export TG_TOKEN=your_telegram_bot_token
-   export TG_ADMIN_IDS=123456789,987654321
-   export XRAY_USER=admin
-   export XRAY_PASSWORD=password123
-   export XRAY_API_URL=http://localhost:8080/api
-   export XRAY_SUB_URL_PREFIX=http://localhost:8080/sub
-   export LOG_LEVEL=info
-   ```
+### 🎭 Demo mode
+- ℹ️ **Bot information**
+- ❓ **Usage help**
 
-5. Run the application:
-   ```bash
-   ./bot
-   ```
+---
 
-## Configuration
+## 🚀 Quick Start
 
-The application is configured using environment variables:
+### Requirements
+- **Go 1.24+** or **Docker**
+- **X-UI panel** with API access
+- **Telegram Bot Token**
 
-### Example Configuration
-
-An example configuration file is provided in `config.example.env`. You can use this as a template for your own configuration:
+### ⚡ Quick installation with Docker
 
 ```bash
-# Copy the example configuration
-cp config.example.env .env
+# 1. Clone repository
+git clone https://github.com/yourusername/xui-tg-admin.git
+cd xui-tg-admin
 
-# Edit the configuration with your values
+# 2. Configure settings
+cp config.example.env .env
 nano .env
+
+# 3. Start
+docker-compose up -d
 ```
+
+### 🔧 Manual installation
+
+```bash
+# 1. Clone and build
+git clone https://github.com/yourusername/xui-tg-admin.git
+cd xui-tg-admin
+go mod download
+go build -o bot ./cmd/bot
+
+# 2. Set environment variables
+export TG_TOKEN=your_telegram_bot_token
+export TG_ADMIN_IDS=123456789,987654321
+export XRAY_USER=admin
+export XRAY_PASSWORD=password123
+export XRAY_API_URL=http://localhost:8080/api
+
+# 3. Run
+./bot
+```
+
+---
+
+## ⚙️ Configuration
+
+### 📝 Configuration example
+
+```env
+# Telegram Bot
+TG_TOKEN=123456789:ABCdefGHIjklMNOpqrSTUvwxYZ
+TG_ADMIN_IDS=123456789,987654321
+
+# X-UI Panel
+XRAY_USER=admin
+XRAY_PASSWORD=secure_password_123
+XRAY_API_URL=http://your-server.com:54321/api
+XRAY_SUB_URL_PREFIX=http://your-server.com:54321/sub
+
+# Logging
+LOG_LEVEL=info
+```
+
+### 🔑 Environment variables
 
 | Variable | Description | Required | Example |
 |----------|-------------|----------|---------|
-| TG_TOKEN | Telegram Bot Token | Yes | `123456789:ABCdefGHIjklMNOpqrSTUvwxYZ` |
-| TG_ADMIN_IDS | Comma-separated list of Telegram user IDs with admin access | Yes | `123456789,987654321` |
-| XRAY_USER | X-ray panel username | Yes | `admin` |
-| XRAY_PASSWORD | X-ray panel password | Yes | `password123` |
-| XRAY_API_URL | X-ray panel API URL | Yes | `http://localhost:8080/api` |
-| XRAY_SUB_URL_PREFIX | Subscription URL prefix | No | `http://localhost:8080/sub` |
-| LOG_LEVEL | Log level (debug, info, warn, error) | No | `info` |
+| `TG_TOKEN` | Telegram Bot Token | ✅ | `123456789:ABCdef...` |
+| `TG_ADMIN_IDS` | Admin IDs (comma-separated) | ✅ | `123456789,987654321` |
+| `XRAY_USER` | X-UI panel login | ✅ | `admin` |
+| `XRAY_PASSWORD` | X-UI panel password | ✅ | `password123` |
+| `XRAY_API_URL` | X-UI panel API URL | ✅ | `http://server.com:54321/api` |
+| `XRAY_SUB_URL_PREFIX` | Subscription URL prefix | ❌ | `http://server.com:54321/sub` |
+| `LOG_LEVEL` | Logging level | ❌ | `info` |
 
-## Usage
+---
 
-### Admin Commands
+## 📖 Usage
 
-- `/start` - Start the bot and show the main menu
-- `Add Member` - Add a new member
-- `Edit Member` - Edit an existing member
-- `Delete Member` - Delete a member
-- `Online Members` - View online members
-- `Network Usage` - View network usage statistics
-- `Detailed Usage` - View detailed user statistics
-- `Reset Network Usage` - Reset network usage for a member
+### 🎮 Administrator interface
 
-### Member Commands
-
-- `/start` - Start the bot and show the main menu
-- `Create New Config` - Create a new VPN configuration
-- `View Configs Info` - View information about your configurations
-
-### Demo Commands
-
-- `/start` - Start the bot and show the main menu
-- `About` - Show information about the bot
-- `Help` - Show help information
-
-## Architecture
-
-The application follows a clean architecture approach with the following components:
-
-- **cmd/bot**: Main application entry point
-- **internal/config**: Configuration management
-- **internal/errors**: Custom error types
-- **internal/handlers**: Telegram message handlers
-- **internal/models**: Data models
-- **internal/permissions**: Access control
-- **internal/services**: Business logic services
-- **pkg/telegrambot**: Telegram bot framework
-- **pkg/xrayclient**: X-ray API client
-
-## Development
-
-### Project Structure
-
+#### Main menu
 ```
-.
-├── cmd
-│   └── bot
-│       └── main.go
-├── internal
-│   ├── config
-│   │   ├── config.go
-│   │   └── loader.go
-│   ├── errors
-│   │   └── errors.go
-│   ├── handlers
-│   │   ├── admin.go
-│   │   ├── base.go
-│   │   ├── demo.go
-│   │   ├── factory.go
-│   │   └── member.go
-│   ├── models
-│   │   ├── client.go
-│   │   ├── inbound.go
-│   │   └── userstate.go
-│   ├── permissions
-│   │   └── controller.go
-│   └── services
-│       ├── qr.go
-│       ├── userstate.go
-│       ├── validator.go
-│       └── xray.go
-├── pkg
-│   ├── telegrambot
-│   │   └── bot.go
-│   └── xrayclient
-│       └── client.go
-├── config.example.env
-├── Dockerfile
-├── docker-compose.yml
-├── go.mod
-├── go.sum
-└── README.md
+┌─────────────────────────┐
+│    ⚙️ Main Menu         │
+├─────────────────────────┤
+│  👤 Add Member  │ 📊 Online │
+│  ✏️ Edit Member │ 📈 Detailed│
+│  🔄 Reset Network Usage │
+└─────────────────────────┘
 ```
 
-### Building and Testing
+#### User management
+```
+┌─────────────────────────┐
+│  👤 vasya_pupkin        │
+├─────────────────────────┤
+│  🔗 View Config         │
+│  🔄 Reset │ 🗑️ Delete   │
+│  ↩️ Return to Main Menu │
+└─────────────────────────┘
+```
 
-To build the application:
+### 📱 Administrator commands
+
+| Command | Description | Example |
+|---------|-------------|---------|
+| `/start` | Start the bot | `/start` |
+| `Add Member` | Add user | Creates user with expiration settings |
+| `Edit Member` | Edit user | View, reset traffic, delete |
+| `Online Members` | Online users | List of active connections |
+| `Detailed Usage` | Detailed statistics | Traffic by users and inbounds |
+| `Reset Network Usage` | Reset all traffic | Bulk operation with confirmation |
+
+### 🔄 Workflow
+
+1. **User creation**:
+   ```
+   Add Member → Enter name → Choose duration → ✅ Done!
+   ```
+
+2. **User management**:
+   ```
+   Edit Member → Select user → Action → Result
+   ```
+
+3. **Monitoring**:
+   ```
+   Online Members → Active list
+   Detailed Usage → Traffic statistics
+   ```
+
+---
+
+## 🏗️ Architecture
+
+### 📁 Project structure
+
+```
+xui-tg-admin/
+├── 📂 cmd/bot/           # Application entry point
+├── 📂 internal/          # Internal logic
+│   ├── 📂 config/        # Configuration
+│   ├── 📂 handlers/      # Telegram handlers
+│   ├── 📂 models/        # Data models
+│   ├── 📂 permissions/   # Access control system
+│   ├── 📂 services/      # Business logic
+│   └── 📂 validation/    # Data validation
+├── 📂 pkg/               # Reusable packages
+│   ├── 📂 telegrambot/   # Telegram bot
+│   └── 📂 xrayclient/    # X-UI API client
+└── 📄 Configuration files
+```
+
+### 🔧 Main components
+
+- **`handlers/`** - Telegram message handlers with role system
+- **`services/`** - Business logic and X-UI API integration
+- **`xrayclient/`** - HTTP client for X-UI API
+- **`permissions/`** - Role and access control system
+
+---
+
+## 🛠️ Development
+
+### 🔨 Building
 
 ```bash
+# Development build
 go build -o bot ./cmd/bot
+
+# Production build
+CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o bot ./cmd/bot
 ```
 
-To run tests:
+### 🧪 Testing
 
 ```bash
+# Run tests
 go test ./...
+
+# Tests with coverage
+go test -cover ./...
 ```
 
-### Key Dependencies
+### 📝 Logging
 
-- **telebot.v3** - Telegram Bot API framework
-- **logrus** - Structured logging
-- **resty** - HTTP client for API requests
-- **viper** - Configuration management
-- **go-cache** - In-memory caching
-- **go-qrcode** - QR code generation
+```bash
+# Log levels
+LOG_LEVEL=debug  # Detailed logs
+LOG_LEVEL=info   # Information messages
+LOG_LEVEL=warn   # Warnings only
+LOG_LEVEL=error  # Errors only
+```
 
-## Features
+---
 
-### User Management
+## 🤝 Contributing
 
-- Create new users with automatic configuration generation
-- Edit existing users (extend expiration time)
-- Delete users with confirmation
-- View detailed traffic usage statistics
+We welcome contributions to the project!
 
-### Monitoring
+### 📋 How to help
 
-- View online users
-- Network usage statistics by inbounds
-- Detailed subscription statistics with grouping
-- Reset traffic counters
+1. 🍴 Fork the repository
+2. 🌿 Create a branch for new feature
+3. 💾 Commit your changes
+4. 🔀 Create a Pull Request
 
-### Security
+### 📝 Code standards
 
-- Role-based access control (Admin/Member/Demo)
-- Automatic authentication with session caching
-- Input data validation
-- Graceful shutdown with proper signal handling
+- Follow [Go Code Review Comments](https://github.com/golang/go/wiki/CodeReviewComments)
+- Use `gofmt` for formatting
+- Add tests for new functionality
+- Update documentation when changing API
 
-## License
+---
 
-This project is licensed under the MIT License - see the LICENSE file for details.
+## 📄 License
 
-## Acknowledgements
+This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
 
-- [telebot](https://github.com/tucnak/telebot) - Telegram Bot API framework
-- [X-UI](https://github.com/vaxilu/x-ui) - X-ray panel
-- [resty](https://github.com/go-resty/resty) - HTTP client for Go
-- [logrus](https://github.com/sirupsen/logrus) - Structured logging
+---
+
+## 🙏 Acknowledgments
+
+- [X-UI](https://github.com/vaxilu/x-ui) - Excellent X-Ray management panel
+- [Telegram Bot API](https://core.telegram.org/bots/api) - Telegram Bot API
+- [Go](https://golang.org/) - Go programming language
+
+---
+
+<div align="center">
+
+**⭐ If you liked the project, give it a star!**
+
+[🚀 Start using](#quick-start) • [📖 Documentation](#usage) • [🐛 Report bug](https://github.com/yourusername/xui-tg-admin/issues)
+
+</div>
