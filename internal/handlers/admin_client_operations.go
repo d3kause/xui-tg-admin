@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"time"
 
@@ -159,27 +160,55 @@ func (h *AdminHandler) extendClientDuration(ctx context.Context, c telebot.Conte
 		return h.sendTextMessage(c, err.Error(), h.createReturnKeyboard())
 	}
 
-	newExpiryTime := foundClient.ExpiryTime + (int64(days) * constants.MillisecondsInDay)
+	// Parse inbound settings to get client SubID
+	var settings models.InboundSettings
+	if err := json.Unmarshal([]byte(foundInbound.Settings), &settings); err != nil {
+		h.logger.Errorf("Failed to parse inbound settings: %v", err)
+		return h.sendTextMessage(c, fmt.Sprintf("Failed to parse inbound settings: %v", err), h.createReturnKeyboard())
+	}
+
+	// Find client in settings to get SubID
+	var clientSubID string
+	for _, client := range settings.Clients {
+		if client.Email == username {
+			clientSubID = client.SubID
+			break
+		}
+	}
+
+	if clientSubID == "" {
+		return h.sendTextMessage(c, fmt.Sprintf("SubID not found for client %s", username), h.createReturnKeyboard())
+	}
+
+	// Calculate new expiry time
+	var newExpiryTime int64
+	if foundClient.ExpiryTime == 0 {
+		// If current expiry is 0 (infinite), set to current time + days
+		newExpiryTime = time.Now().Add(time.Duration(days) * 24 * time.Hour).UnixMilli()
+	} else {
+		// Add days to current expiry time
+		newExpiryTime = foundClient.ExpiryTime + (int64(days) * constants.MillisecondsInDay)
+	}
 
 	updatedClient := models.Client{
 		ID:         username,
 		Enable:     foundClient.Enable,
 		Email:      username,
-		TotalGB:    int(foundClient.Total / constants.BytesInGB),
-		LimitIP:    0,
+		TotalGB:    0, // Unlimited traffic
+		LimitIP:    0, // No IP limit
 		ExpiryTime: &newExpiryTime,
 		TgID:       fmt.Sprintf("%d", c.Sender().ID),
-		SubID:      models.GenerateSubID(),
+		SubID:      clientSubID, // Keep existing SubID
 	}
 
 	if err := h.xrayService.RemoveClients(ctx, []string{username}); err != nil {
 		h.logger.Errorf("Failed to remove old client: %v", err)
-		return h.sendTextMessage(c, fmt.Sprintf("Failed to remove old client: %v", err), nil)
+		return h.sendTextMessage(c, fmt.Sprintf("Failed to remove old client: %v", err), h.createReturnKeyboard())
 	}
 
 	if err := h.xrayService.AddClient(ctx, foundInbound.ID, updatedClient); err != nil {
 		h.logger.Errorf("Failed to add updated client: %v", err)
-		return h.sendTextMessage(c, fmt.Sprintf("Failed to add updated client: %v", err), nil)
+		return h.sendTextMessage(c, fmt.Sprintf("Failed to add updated client: %v", err), h.createReturnKeyboard())
 	}
 
 	return h.sendTextMessage(c, fmt.Sprintf("Successfully extended duration for %s by %d days.", username, days), h.createReturnKeyboard())
@@ -187,35 +216,15 @@ func (h *AdminHandler) extendClientDuration(ctx context.Context, c telebot.Conte
 
 // resetClientTraffic resets traffic for a specific client
 func (h *AdminHandler) resetClientTraffic(ctx context.Context, c telebot.Context, username string) error {
-	inbounds, err := h.xrayService.GetInbounds(ctx)
+	foundInbound, _, err := h.findClientInInbounds(ctx, username)
 	if err != nil {
-		return h.sendTextMessage(c, fmt.Sprintf("Failed to get inbounds: %v", err), nil)
+		return h.sendTextMessage(c, fmt.Sprintf("Client %s not found: %v", username, err), h.createReturnKeyboard())
 	}
 
-	var inboundID int
-	var found bool
-
-	for _, inbound := range inbounds {
-		for _, client := range inbound.ClientStats {
-			if client.Email == username {
-				inboundID = inbound.ID
-				found = true
-				break
-			}
-		}
-		if found {
-			break
-		}
-	}
-
-	if !found {
-		return h.sendTextMessage(c, fmt.Sprintf("Client %s not found.", username), h.createReturnKeyboard())
-	}
-
-	if err := h.xrayService.ResetUserTraffic(ctx, inboundID, username); err != nil {
+	if err := h.xrayService.ResetUserTraffic(ctx, foundInbound.ID, username); err != nil {
 		h.logger.Errorf("Failed to reset traffic: %v", err)
-		return h.sendTextMessage(c, fmt.Sprintf("Failed to reset traffic: %v", err), nil)
+		return h.sendTextMessage(c, fmt.Sprintf("Failed to reset traffic: %v", err), h.createReturnKeyboard())
 	}
 
-	return h.sendTextMessage(c, fmt.Sprintf("Traffic reset for %s.", username), h.createReturnKeyboard())
+	return h.sendTextMessage(c, fmt.Sprintf("Traffic reset successfully for %s.", username), h.createReturnKeyboard())
 }

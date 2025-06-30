@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -509,12 +510,35 @@ func (h *AdminHandler) processMemberAction(c telebot.Context) error {
 
 // handleViewConfig handles the View Config action
 func (h *AdminHandler) handleViewConfig(c telebot.Context, username string) error {
-	// Get subscription URL
-	subURL, err := h.xrayService.GetSubscriptionURL(context.Background(), username)
+	// Find client in inbounds to get SubID
+	foundInbound, _, err := h.findClientInInbounds(context.Background(), username)
 	if err != nil {
-		h.logger.Errorf("Failed to get subscription URL: %v", err)
-		return h.sendTextMessage(c, fmt.Sprintf("Failed to get subscription URL: %v", err), nil)
+		h.logger.Errorf("Failed to find client: %v", err)
+		return h.sendTextMessage(c, fmt.Sprintf("Failed to find client %s: %v", username, err), h.createReturnKeyboard())
 	}
+
+	// Parse inbound settings to get client SubID
+	var settings models.InboundSettings
+	if err := json.Unmarshal([]byte(foundInbound.Settings), &settings); err != nil {
+		h.logger.Errorf("Failed to parse inbound settings: %v", err)
+		return h.sendTextMessage(c, fmt.Sprintf("Failed to parse inbound settings: %v", err), h.createReturnKeyboard())
+	}
+
+	// Find client in settings
+	var clientSubID string
+	for _, client := range settings.Clients {
+		if client.Email == username {
+			clientSubID = client.SubID
+			break
+		}
+	}
+
+	if clientSubID == "" {
+		return h.sendTextMessage(c, fmt.Sprintf("SubID not found for client %s", username), h.createReturnKeyboard())
+	}
+
+	// Get subscription URL using SubID (same format as when adding user)
+	subURL := fmt.Sprintf("https://iris.xele.one:2096/sub/%s?name=%s", clientSubID, clientSubID)
 
 	// Send subscription URL
 	err = h.sendTextMessage(c, fmt.Sprintf("Subscription URL for %s:\n\n%s", username, subURL), h.createReturnKeyboard())
