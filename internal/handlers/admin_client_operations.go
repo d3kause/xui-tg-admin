@@ -11,6 +11,7 @@ import (
 	"xui-tg-admin/internal/constants"
 	"xui-tg-admin/internal/helpers"
 	"xui-tg-admin/internal/models"
+	"xui-tg-admin/internal/permissions"
 	"xui-tg-admin/internal/validation"
 )
 
@@ -96,7 +97,7 @@ func (h *AdminHandler) sendSubscriptionInfo(c telebot.Context, params ClientCrea
 		addErrors,
 	)
 
-	if err := h.sendTextMessage(c, subscriptionInfo, h.createReturnKeyboard()); err != nil {
+	if err := h.sendTextMessage(c, subscriptionInfo, nil); err != nil {
 		return err
 	}
 
@@ -109,7 +110,14 @@ func (h *AdminHandler) sendSubscriptionInfo(c telebot.Context, params ClientCrea
 		}
 	}
 
-	return nil
+	// Clear user state and return to main menu
+	if err := h.stateService.ClearState(c.Sender().ID); err != nil {
+		h.logger.Errorf("Failed to clear user state: %v", err)
+	}
+
+	// Show main menu
+	markup := h.createMainKeyboard(permissions.Admin)
+	return h.sendTextMessage(c, "User added successfully! Welcome back to the main menu.", markup)
 }
 
 // calculateExpiryTime calculates expiry time based on duration
