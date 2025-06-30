@@ -74,8 +74,6 @@ func (h *AdminHandler) Handle(ctx context.Context, c telebot.Context) error {
 		return h.processConfirmDeletion(c)
 	case models.AwaitConfirmResetUsersNetworkUsage:
 		return h.processConfirmResetUsersNetworkUsage(c)
-	case models.AwaitExtendDuration:
-		return h.processExtendDuration(c)
 	default:
 		h.logger.Warnf("Unknown state: %d", userState.State)
 		return h.handleDefaultState(c)
@@ -125,9 +123,14 @@ func (h *AdminHandler) handleStart(c telebot.Context) error {
 		return err
 	}
 
-	// Show main menu
+	// Show main menu with welcome message only for /start command
 	markup := h.createMainKeyboard(permissions.Admin)
-	return h.sendTextMessage(c, "Welcome to X-UI Admin Bot!", markup)
+	if c.Text() == commands.Start {
+		return h.sendTextMessage(c, "Welcome to X-UI Admin Bot!", markup)
+	}
+
+	// For return to main menu, show only the keyboard without any message
+	return c.Send("⚙️", markup)
 }
 
 // handleAddMember handles the Add Member command
@@ -427,23 +430,7 @@ func (h *AdminHandler) processSelectUser(c telebot.Context) error {
 	}
 
 	// Create action keyboard
-	markup := &telebot.ReplyMarkup{
-		ResizeKeyboard: true,
-	}
-
-	markup.Reply(
-		telebot.Row{
-			telebot.Btn{Text: commands.ViewConfig},
-			telebot.Btn{Text: commands.ExtendDuration},
-		},
-		telebot.Row{
-			telebot.Btn{Text: commands.ResetTraffic},
-			telebot.Btn{Text: commands.Delete},
-		},
-		telebot.Row{
-			telebot.Btn{Text: commands.ReturnToMainMenu},
-		},
-	)
+	markup := h.createUserActionKeyboard()
 
 	return h.sendTextMessage(c, fmt.Sprintf("Selected user: %s\nWhat would you like to do?", username), markup)
 }
@@ -471,8 +458,6 @@ func (h *AdminHandler) processMemberAction(c telebot.Context) error {
 	switch action {
 	case commands.ViewConfig:
 		return h.handleViewConfig(c, username)
-	case commands.ExtendDuration:
-		return h.handleExtendDuration(c, username)
 	case commands.ResetTraffic:
 		return h.handleResetTraffic(c, username)
 	case commands.Delete:
@@ -484,40 +469,73 @@ func (h *AdminHandler) processMemberAction(c telebot.Context) error {
 	}
 }
 
+// createUserActionKeyboard creates a keyboard for user actions
+func (h *AdminHandler) createUserActionKeyboard() *telebot.ReplyMarkup {
+	markup := &telebot.ReplyMarkup{
+		ResizeKeyboard: true,
+	}
+
+	markup.Reply(
+		telebot.Row{
+			telebot.Btn{Text: commands.ViewConfig},
+		},
+		telebot.Row{
+			telebot.Btn{Text: commands.ResetTraffic},
+			telebot.Btn{Text: commands.Delete},
+		},
+		telebot.Row{
+			telebot.Btn{Text: commands.ReturnToMainMenu},
+		},
+	)
+
+	return markup
+}
+
 // handleViewConfig handles the View Config action
 func (h *AdminHandler) handleViewConfig(c telebot.Context, username string) error {
-	// Find client in inbounds to get SubID
-	foundInbound, _, err := h.findClientInInbounds(context.Background(), username)
+	h.logger.Infof("Starting view config for user: %s", username)
+
+	// Get all inbounds
+	inbounds, err := h.xrayService.GetInbounds(context.Background())
 	if err != nil {
-		h.logger.Errorf("Failed to find client: %v", err)
-		return h.sendTextMessage(c, fmt.Sprintf("Failed to find client %s: %v", username, err), h.createReturnKeyboard())
+		h.logger.Errorf("Failed to get inbounds: %v", err)
+		return h.sendTextMessage(c, fmt.Sprintf("Failed to get inbounds: %v", err), h.createUserActionKeyboard())
 	}
 
-	// Parse inbound settings to get client SubID
-	var settings models.InboundSettings
-	if err := json.Unmarshal([]byte(foundInbound.Settings), &settings); err != nil {
-		h.logger.Errorf("Failed to parse inbound settings: %v", err)
-		return h.sendTextMessage(c, fmt.Sprintf("Failed to parse inbound settings: %v", err), h.createReturnKeyboard())
-	}
+	// Find first client with the base username to get SubID
+	var foundClientSubID string
 
-	// Find client in settings
-	var clientSubID string
-	for _, client := range settings.Clients {
-		if client.Email == username {
-			clientSubID = client.SubID
+	for _, inbound := range inbounds {
+		// Parse inbound settings to get client details
+		var settings models.InboundSettings
+		if err := json.Unmarshal([]byte(inbound.Settings), &settings); err != nil {
+			h.logger.Errorf("Failed to parse settings for inbound %d: %v", inbound.ID, err)
+			continue
+		}
+
+		// Find client in settings
+		for _, client := range settings.Clients {
+			// Check if client email starts with the base username
+			if strings.HasPrefix(client.Email, username) && (len(client.Email) == len(username) || client.Email[len(username)] == '-') {
+				h.logger.Infof("Found matching client: %s in inbound %d", client.Email, inbound.ID)
+				foundClientSubID = client.SubID
+				break
+			}
+		}
+		if foundClientSubID != "" {
 			break
 		}
 	}
 
-	if clientSubID == "" {
-		return h.sendTextMessage(c, fmt.Sprintf("SubID not found for client %s", username), h.createReturnKeyboard())
+	if foundClientSubID == "" {
+		return h.sendTextMessage(c, fmt.Sprintf("No clients found with base name %s", username), h.createUserActionKeyboard())
 	}
 
 	// Get subscription URL using SubID (same format as when adding user)
-	subURL := fmt.Sprintf("https://iris.xele.one:2096/sub/%s?name=%s", clientSubID, clientSubID)
+	subURL := fmt.Sprintf("https://iris.xele.one:2096/sub/%s?name=%s", foundClientSubID, foundClientSubID)
 
-	// Send subscription URL
-	err = h.sendTextMessage(c, fmt.Sprintf("Subscription URL for %s:\n\n%s", username, subURL), h.createReturnKeyboard())
+	// Send subscription URL with user action keyboard (stays in same state)
+	err = h.sendTextMessage(c, fmt.Sprintf("Subscription URL for %s:\n\n%s", username, subURL), h.createUserActionKeyboard())
 	if err != nil {
 		return err
 	}
@@ -526,55 +544,54 @@ func (h *AdminHandler) handleViewConfig(c telebot.Context, username string) erro
 	return h.sendQRCode(c, subURL)
 }
 
-// handleExtendDuration handles the Extend Duration action
-func (h *AdminHandler) handleExtendDuration(c telebot.Context, username string) error {
-	// Set state to awaiting extend duration
-	err := h.stateService.WithConversationState(c.Sender().ID, models.AwaitExtendDuration)
-	if err != nil {
-		h.logger.Errorf("Failed to set state: %v", err)
-		return err
-	}
-
-	// Show return keyboard
-	markup := h.createReturnKeyboard()
-	return h.sendTextMessage(c, fmt.Sprintf("Please enter the number of days to extend for %s:", username), markup)
-}
-
-// processExtendDuration processes the extend duration input
-func (h *AdminHandler) processExtendDuration(c telebot.Context) error {
-	// Get duration from message
-	durationStr := c.Text()
-
-	// Validate duration
-	if durationStr == commands.ReturnToMainMenu {
-		return h.handleStart(c)
-	}
-
-	// Parse duration
-	days, err := validation.ValidateDuration(durationStr)
-	if err != nil {
-		return h.sendTextMessage(c, fmt.Sprintf("%s. Please try again:", err.Error()), nil)
-	}
-
-	// Get user state
-	userState, err := h.stateService.GetState(c.Sender().ID)
-	if err != nil {
-		h.logger.Errorf("Failed to get user state: %v", err)
-		return err
-	}
-
-	// Get username from state
-	if userState.Payload == nil {
-		return h.sendTextMessage(c, "Username not found. Please try again.", nil)
-	}
-
-	username := *userState.Payload
-	return h.extendClientDuration(context.Background(), c, username, days)
-}
-
 // handleResetTraffic handles the Reset Traffic action
 func (h *AdminHandler) handleResetTraffic(c telebot.Context, username string) error {
-	return h.resetClientTraffic(context.Background(), c, username)
+	h.logger.Infof("Starting reset traffic for user: %s", username)
+
+	// Get all inbounds
+	inbounds, err := h.xrayService.GetInbounds(context.Background())
+	if err != nil {
+		h.logger.Errorf("Failed to get inbounds: %v", err)
+		return h.sendTextMessage(c, fmt.Sprintf("Failed to get inbounds: %v", err), h.createUserActionKeyboard())
+	}
+
+	// Find all clients with the base username and reset their traffic
+	var resetErrors []string
+	successfullyReset := 0
+
+	for _, inbound := range inbounds {
+		for _, clientStat := range inbound.ClientStats {
+			// Check if client email starts with the base username
+			if strings.HasPrefix(clientStat.Email, username) && (len(clientStat.Email) == len(username) || clientStat.Email[len(username)] == '-') {
+				h.logger.Infof("Found matching client: %s in inbound %d", clientStat.Email, inbound.ID)
+
+				err := h.xrayService.ResetUserTraffic(context.Background(), inbound.ID, clientStat.Email)
+				if err != nil {
+					h.logger.Errorf("Failed to reset traffic for %s in inbound %d: %v", clientStat.Email, inbound.ID, err)
+					resetErrors = append(resetErrors, fmt.Sprintf("Failed to reset %s in inbound %d: %v", clientStat.Email, inbound.ID, err))
+				} else {
+					h.logger.Infof("Successfully reset traffic for %s in inbound %d", clientStat.Email, inbound.ID)
+					successfullyReset++
+				}
+			}
+		}
+	}
+
+	// Send result message
+	var message string
+	if successfullyReset > 0 {
+		message = fmt.Sprintf("Traffic reset successfully for %s!", username)
+		if len(resetErrors) > 0 {
+			message += fmt.Sprintf("\n\nSome errors occurred:\n%s", strings.Join(resetErrors, "\n"))
+		}
+	} else {
+		message = fmt.Sprintf("No clients found with base name %s to reset traffic.", username)
+		if len(resetErrors) > 0 {
+			message += fmt.Sprintf("\n\nErrors:\n%s", strings.Join(resetErrors, "\n"))
+		}
+	}
+
+	return h.sendTextMessage(c, message, h.createUserActionKeyboard())
 }
 
 // handleConfirmDelete handles the Delete action
@@ -587,7 +604,7 @@ func (h *AdminHandler) handleConfirmDelete(c telebot.Context, username string) e
 	}
 	// Показать клавиатуру подтверждения
 	markup := h.createConfirmKeyboard()
-	return h.sendTextMessage(c, fmt.Sprintf("Are you sure you want to delete %s?", username), markup)
+	return h.sendTextMessage(c, fmt.Sprintf("⚠️ <b>Confirm User Deletion</b>\n\nAre you sure you want to delete user <b>%s</b>?\n\nThis will remove the user from ALL inbounds and cannot be undone.", username), markup)
 }
 
 // processConfirmDeletion processes the deletion confirmation

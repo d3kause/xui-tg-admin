@@ -2,14 +2,12 @@ package handlers
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"time"
 
 	telebot "gopkg.in/telebot.v3"
 
 	"xui-tg-admin/internal/commands"
-	"xui-tg-admin/internal/constants"
 	"xui-tg-admin/internal/helpers"
 	"xui-tg-admin/internal/models"
 	"xui-tg-admin/internal/permissions"
@@ -118,7 +116,7 @@ func (h *AdminHandler) sendSubscriptionInfo(c telebot.Context, params ClientCrea
 
 	// Show main menu
 	markup := h.createMainKeyboard(permissions.Admin)
-	return h.sendTextMessage(c, "User added successfully! Welcome back to the main menu.", markup)
+	return c.Send("✅ User added successfully!", markup)
 }
 
 // calculateExpiryTime calculates expiry time based on duration
@@ -151,67 +149,6 @@ func (h *AdminHandler) findClientInInbounds(ctx context.Context, email string) (
 	}
 
 	return nil, nil, fmt.Errorf("client %s not found", email)
-}
-
-// extendClientDuration extends a client's duration by the specified days
-func (h *AdminHandler) extendClientDuration(ctx context.Context, c telebot.Context, username string, days int) error {
-	foundInbound, foundClient, err := h.findClientInInbounds(ctx, username)
-	if err != nil {
-		return h.sendTextMessage(c, err.Error(), h.createReturnKeyboard())
-	}
-
-	// Parse inbound settings to get client SubID
-	var settings models.InboundSettings
-	if err := json.Unmarshal([]byte(foundInbound.Settings), &settings); err != nil {
-		h.logger.Errorf("Failed to parse inbound settings: %v", err)
-		return h.sendTextMessage(c, fmt.Sprintf("Failed to parse inbound settings: %v", err), h.createReturnKeyboard())
-	}
-
-	// Find client in settings to get SubID
-	var clientSubID string
-	for _, client := range settings.Clients {
-		if client.Email == username {
-			clientSubID = client.SubID
-			break
-		}
-	}
-
-	if clientSubID == "" {
-		return h.sendTextMessage(c, fmt.Sprintf("SubID not found for client %s", username), h.createReturnKeyboard())
-	}
-
-	// Calculate new expiry time
-	var newExpiryTime int64
-	if foundClient.ExpiryTime == 0 {
-		// If current expiry is 0 (infinite), set to current time + days
-		newExpiryTime = time.Now().Add(time.Duration(days) * 24 * time.Hour).UnixMilli()
-	} else {
-		// Add days to current expiry time
-		newExpiryTime = foundClient.ExpiryTime + (int64(days) * constants.MillisecondsInDay)
-	}
-
-	updatedClient := models.Client{
-		ID:         username,
-		Enable:     foundClient.Enable,
-		Email:      username,
-		TotalGB:    0, // Unlimited traffic
-		LimitIP:    0, // No IP limit
-		ExpiryTime: &newExpiryTime,
-		TgID:       fmt.Sprintf("%d", c.Sender().ID),
-		SubID:      clientSubID, // Keep existing SubID
-	}
-
-	if err := h.xrayService.RemoveClients(ctx, []string{username}); err != nil {
-		h.logger.Errorf("Failed to remove old client: %v", err)
-		return h.sendTextMessage(c, fmt.Sprintf("Failed to remove old client: %v", err), h.createReturnKeyboard())
-	}
-
-	if err := h.xrayService.AddClient(ctx, foundInbound.ID, updatedClient); err != nil {
-		h.logger.Errorf("Failed to add updated client: %v", err)
-		return h.sendTextMessage(c, fmt.Sprintf("Failed to add updated client: %v", err), h.createReturnKeyboard())
-	}
-
-	return h.sendTextMessage(c, fmt.Sprintf("Successfully extended duration for %s by %d days.", username, days), h.createReturnKeyboard())
 }
 
 // resetClientTraffic resets traffic for a specific client

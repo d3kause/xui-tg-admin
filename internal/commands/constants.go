@@ -27,10 +27,9 @@ const (
 	Help  = "Help"
 
 	// Member action commands
-	ViewConfig     = "View Config"
-	ExtendDuration = "Extend Duration"
-	ResetTraffic   = "Reset Traffic"
-	Delete         = "Delete"
+	ViewConfig   = "View Config"
+	ResetTraffic = "Reset Traffic"
+	Delete       = "Delete"
 
 	// Confirmation commands
 	Confirm = "Confirm"

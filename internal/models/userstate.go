@@ -18,8 +18,6 @@ const (
 	AwaitConfirmMemberDeletion
 	// AwaitConfirmResetUsersNetworkUsage is the state when the user is confirming network usage reset
 	AwaitConfirmResetUsersNetworkUsage
-	// AwaitExtendDuration is the state when the user is inputting an extension duration
-	AwaitExtendDuration
 )
 
 // UserState represents the state of a user's conversation
