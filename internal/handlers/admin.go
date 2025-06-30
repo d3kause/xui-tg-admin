@@ -98,8 +98,17 @@ func (h *AdminHandler) initializeCommands() {
 
 // handleDefaultState handles the default state
 func (h *AdminHandler) handleDefaultState(c telebot.Context) error {
+	// Strip emoji prefixes from button text to match commands
+	text := c.Text()
+	// Remove emoji prefixes (find text after first space if emoji is present)
+	if len(text) > 2 && text[0] != '/' {
+		if spaceIndex := strings.Index(text, " "); spaceIndex > 0 {
+			text = text[spaceIndex+1:]
+		}
+	}
+
 	// Check if we have a command handler for this text
-	if handler, ok := h.commandHandlers[c.Text()]; ok {
+	if handler, ok := h.commandHandlers[text]; ok {
 		return handler(c)
 	}
 
@@ -126,11 +135,11 @@ func (h *AdminHandler) handleStart(c telebot.Context) error {
 	// Show main menu with welcome message only for /start command
 	markup := h.createMainKeyboard(permissions.Admin)
 	if c.Text() == commands.Start {
-		return h.sendTextMessage(c, "Welcome to X-UI Admin Bot!", markup)
+		return h.sendTextMessage(c, "🚀 <b>Welcome to X-UI Admin Panel!</b>\n\nYou have administrator privileges. Use the menu below to manage your VPN users, monitor connections, and configure settings.", markup)
 	}
 
 	// For return to main menu, show only the keyboard without any message
-	return c.Send("⚙️", markup)
+	return c.Send("🏠 <b>Main Menu</b>\n\nSelect an action:", markup)
 }
 
 // handleAddMember handles the Add Member command
@@ -145,7 +154,7 @@ func (h *AdminHandler) handleAddMember(c telebot.Context) error {
 
 	// Show return keyboard
 	markup := h.createReturnKeyboard()
-	return h.sendTextMessage(c, "Please enter the username for the new member:", markup)
+	return h.sendTextMessage(c, "👤 <b>Add New User</b>\n\n📝 Please enter a username for the new user:\n\n<i>• Use only letters, numbers, and underscores\n• 3-20 characters long\n• Example: john_doe, user123</i>", markup)
 }
 
 // baseUsername возвращает имя пользователя без постфикса
@@ -170,11 +179,11 @@ func (h *AdminHandler) handleEditMember(c telebot.Context) error {
 	members, err := h.xrayService.GetAllMembers(context.Background())
 	if err != nil {
 		h.logger.Errorf("Failed to get members: %v", err)
-		return h.sendTextMessage(c, fmt.Sprintf("Failed to get members: %v", err), nil)
+		return h.sendTextMessage(c, "❌ <b>Connection Error</b>\n\nCouldn't retrieve user list. Please check your server connection and try again.", h.createReturnKeyboard())
 	}
 
 	if len(members) == 0 {
-		return h.sendTextMessage(c, "No members found.", h.createReturnKeyboard())
+		return h.sendTextMessage(c, "📭 <b>No Users Found</b>\n\nThere are no users in the system yet. Use <b>Add Member</b> to create your first user.", h.createReturnKeyboard())
 	}
 
 	// Create keyboard with member names
@@ -188,7 +197,7 @@ func (h *AdminHandler) handleEditMember(c telebot.Context) error {
 	}
 
 	// Add return button
-	rows = append(rows, telebot.Row{telebot.Btn{Text: commands.ReturnToMainMenu}})
+	rows = append(rows, telebot.Row{telebot.Btn{Text: "↩️ " + commands.ReturnToMainMenu}})
 
 	markup.Reply(rows...)
 
@@ -199,7 +208,7 @@ func (h *AdminHandler) handleEditMember(c telebot.Context) error {
 		return err
 	}
 
-	return h.sendTextMessage(c, "Please select a member to edit:", markup)
+	return h.sendTextMessage(c, "✏️ <b>Edit User</b>\n\n👥 Select a user to manage:", markup)
 }
 
 // handleDeleteMember handles the Delete Member command
@@ -216,11 +225,11 @@ func (h *AdminHandler) handleDeleteMember(c telebot.Context) error {
 	members, err := h.xrayService.GetAllMembers(context.Background())
 	if err != nil {
 		h.logger.Errorf("Failed to get members: %v", err)
-		return h.sendTextMessage(c, fmt.Sprintf("Failed to get members: %v", err), nil)
+		return h.sendTextMessage(c, "❌ <b>Connection Error</b>\n\nCouldn't retrieve user list. Please check your server connection and try again.", h.createReturnKeyboard())
 	}
 
 	if len(members) == 0 {
-		return h.sendTextMessage(c, "No members found.", h.createReturnKeyboard())
+		return h.sendTextMessage(c, "📭 <b>No Users Found</b>\n\nThere are no users to delete.", h.createReturnKeyboard())
 	}
 
 	// Create keyboard with member names
@@ -234,7 +243,7 @@ func (h *AdminHandler) handleDeleteMember(c telebot.Context) error {
 	}
 
 	// Add return button
-	rows = append(rows, telebot.Row{telebot.Btn{Text: commands.ReturnToMainMenu}})
+	rows = append(rows, telebot.Row{telebot.Btn{Text: "↩️ " + commands.ReturnToMainMenu}})
 
 	markup.Reply(rows...)
 
@@ -245,7 +254,7 @@ func (h *AdminHandler) handleDeleteMember(c telebot.Context) error {
 		return err
 	}
 
-	return h.sendTextMessage(c, "Please select a member to delete:", markup)
+	return h.sendTextMessage(c, "🗑️ <b>Delete User</b>\n\n⚠️ Select a user to permanently delete:", markup)
 }
 
 // handleGetOnlineMembers handles the Online Members command
@@ -255,17 +264,17 @@ func (h *AdminHandler) handleGetOnlineMembers(c telebot.Context) error {
 	onlineUsers, err := h.xrayService.GetOnlineUsers(context.Background())
 	if err != nil {
 		h.logger.Errorf("Failed to get online users: %v", err)
-		return h.sendTextMessage(c, fmt.Sprintf("Failed to get online users: %v", err), nil)
+		return h.sendTextMessage(c, "❌ <b>Connection Error</b>\n\nCouldn't retrieve online users. Please check your server connection and try again.", h.createMainKeyboard(permissions.Admin))
 	}
 
 	// Format message
 	var message string
 	if len(onlineUsers) == 0 {
-		message = "No users are currently online."
+		message = "💤 <b>No Active Connections</b>\n\nNo users are currently connected to the VPN server."
 	} else {
-		message = "Online users:\n\n"
+		message = fmt.Sprintf("🟢 <b>Active Connections (%d)</b>\n\n", len(onlineUsers))
 		for _, user := range onlineUsers {
-			message += fmt.Sprintf("・%s\n", user)
+			message += fmt.Sprintf("👤 %s\n", user)
 		}
 	}
 
@@ -279,7 +288,7 @@ func (h *AdminHandler) handleGetUsersNetworkUsage(c telebot.Context) error {
 	inbounds, err := h.xrayService.GetInbounds(context.Background())
 	if err != nil {
 		h.logger.Errorf("Failed to get inbounds: %v", err)
-		return h.sendTextMessage(c, fmt.Sprintf("Failed to get inbounds: %v", err), nil)
+		return h.sendTextMessage(c, "❌ <b>Connection Error</b>\n\nCouldn't retrieve network usage data. Please check your server connection and try again.", h.createReturnKeyboard())
 	}
 
 	// Format beautiful network usage report
@@ -299,7 +308,7 @@ func (h *AdminHandler) handleResetUsersNetworkUsage(c telebot.Context) error {
 
 	// Show confirm keyboard
 	markup := h.createConfirmKeyboard()
-	return h.sendTextMessage(c, "Are you sure you want to reset network usage for ALL users? This action cannot be undone.", markup)
+	return h.sendTextMessage(c, "⚠️ <b>Reset All Network Usage</b>\n\nThis will reset traffic statistics for <b>ALL users</b> in the system.\n\n<b>⚠️ This action cannot be undone!</b>\n\nAre you sure you want to proceed?", markup)
 }
 
 // processUserName processes the username input
@@ -314,7 +323,7 @@ func (h *AdminHandler) processUserName(c telebot.Context) error {
 
 	// Validate username format
 	if err := validation.ValidateUsername(username); err != nil {
-		return h.sendTextMessage(c, fmt.Sprintf("%s. Please try again:", err.Error()), nil)
+		return h.sendTextMessage(c, fmt.Sprintf("❌ <b>Invalid Username</b>\n\n%s\n\n💡 <b>Requirements:</b>\n• 3-20 characters\n• Letters, numbers, underscores only\n• Example: john_doe, user123\n\nPlease try again:", err.Error()), h.createReturnKeyboard())
 	}
 
 	// Store username in state
@@ -337,20 +346,27 @@ func (h *AdminHandler) processUserName(c telebot.Context) error {
 	}
 	markup.Reply(
 		telebot.Row{
-			telebot.Btn{Text: commands.Infinite},
+			telebot.Btn{Text: "∞ " + commands.Infinite},
 		},
 		telebot.Row{
-			telebot.Btn{Text: commands.ReturnToMainMenu},
+			telebot.Btn{Text: "↩️ " + commands.ReturnToMainMenu},
 		},
 	)
 
-	return h.sendTextMessage(c, "Enter the duration in days (e.g., 30) or choose infinite duration:", markup)
+	return h.sendTextMessage(c, fmt.Sprintf("⏰ <b>Set Duration for %s</b>\n\n📅 Enter subscription duration in days:\n\n<i>• Example: 30 (for 30 days)\n• Maximum: 3650 days\n• Or choose Infinite for unlimited time</i>", username), markup)
 }
 
 // processDuration processes the duration input
 func (h *AdminHandler) processDuration(c telebot.Context) error {
-	// Get duration from message
+	// Get duration from message and strip emoji prefix
 	durationStr := c.Text()
+
+	// Strip emoji prefixes for buttons
+	if len(durationStr) > 2 && durationStr[0] != '/' {
+		if spaceIndex := strings.Index(durationStr, " "); spaceIndex > 0 {
+			durationStr = durationStr[spaceIndex+1:]
+		}
+	}
 
 	// Validate duration
 	if durationStr == commands.ReturnToMainMenu {
@@ -366,7 +382,7 @@ func (h *AdminHandler) processDuration(c telebot.Context) error {
 
 	// Get username from state
 	if userState.Payload == nil {
-		return h.sendTextMessage(c, "Username not found. Please try again.", nil)
+		return h.sendTextMessage(c, "❌ <b>Session Error</b>\n\nUsername data was lost. Please start over.", h.createReturnKeyboard())
 	}
 
 	baseUsername := *userState.Payload
@@ -375,13 +391,13 @@ func (h *AdminHandler) processDuration(c telebot.Context) error {
 	enabledInbounds, err := h.getEnabledInbounds(context.Background())
 	if err != nil {
 		h.logger.Errorf("Failed to get enabled inbounds: %v", err)
-		return h.sendTextMessage(c, fmt.Sprintf("Failed to get inbounds: %v. Please contact administrator.", err), nil)
+		return h.sendTextMessage(c, "❌ <b>Server Configuration Error</b>\n\nNo enabled inbound connections found. Please check your server configuration or contact the administrator.", h.createReturnKeyboard())
 	}
 
 	// Calculate expiry time
 	expiryTime, err := calculateExpiryTime(durationStr)
 	if err != nil {
-		return h.sendTextMessage(c, fmt.Sprintf("%s. Please try again:", err.Error()), nil)
+		return h.sendTextMessage(c, fmt.Sprintf("❌ <b>Invalid Duration</b>\n\n%s\n\n💡 <b>Valid formats:</b>\n• Number: 30 (for 30 days)\n• Range: 1-3650 days\n• Or use the Infinite button\n\nPlease try again:", err.Error()), h.createReturnKeyboard())
 	}
 
 	// Create client creation parameters
@@ -394,11 +410,19 @@ func (h *AdminHandler) processDuration(c telebot.Context) error {
 		SenderID:        c.Sender().ID,
 	}
 
+	// Send loading message
+	loadingMsg, _ := h.sendTextMessageWithReturn(c, "⏳ <b>Creating User...</b>\n\nPlease wait while we set up the new user configuration across all servers.", nil)
+
 	// Create clients for all enabled inbounds
 	createdEmails, addErrors, addedToAny := h.createClientsForAllInbounds(context.Background(), params, enabledInbounds)
 
+	// Delete loading message
+	if loadingMsg != nil {
+		c.Bot().Delete(loadingMsg)
+	}
+
 	if !addedToAny {
-		return h.sendTextMessage(c, fmt.Sprintf("Failed to add client to any inbound:\n%s", strings.Join(addErrors, "\n")), nil)
+		return h.sendTextMessage(c, fmt.Sprintf("❌ <b>User Creation Failed</b>\n\nCouldn't create user '%s' in any server configuration.\n\n<b>Errors:</b>\n%s\n\nPlease check server configuration or try again later.", baseUsername, strings.Join(addErrors, "\n")), h.createReturnKeyboard())
 	}
 
 	// Send subscription information and QR code
@@ -432,13 +456,18 @@ func (h *AdminHandler) processSelectUser(c telebot.Context) error {
 	// Create action keyboard
 	markup := h.createUserActionKeyboard()
 
-	return h.sendTextMessage(c, fmt.Sprintf("Selected user: %s\nWhat would you like to do?", username), markup)
+	return h.sendTextMessage(c, fmt.Sprintf("👤 <b>Managing User: %s</b>\n\n🎛️ Choose an action:", username), markup)
 }
 
 // processMemberAction processes the member action selection
 func (h *AdminHandler) processMemberAction(c telebot.Context) error {
-	// Get action from message
+	// Get action from message and strip emoji prefix
 	action := c.Text()
+	if len(action) > 2 && action[0] != '/' {
+		if spaceIndex := strings.Index(action, " "); spaceIndex > 0 {
+			action = action[spaceIndex+1:]
+		}
+	}
 
 	// Проверяем доступность сервиса
 	userState, err := h.stateService.GetState(c.Sender().ID)
@@ -449,7 +478,7 @@ func (h *AdminHandler) processMemberAction(c telebot.Context) error {
 
 	// Get username from state
 	if userState.Payload == nil {
-		return h.sendTextMessage(c, "Username not found. Please try again.", nil)
+		return h.sendTextMessage(c, "❌ <b>Session Error</b>\n\nUser data was lost. Please start over.", h.createReturnKeyboard())
 	}
 
 	username := *userState.Payload
@@ -465,7 +494,7 @@ func (h *AdminHandler) processMemberAction(c telebot.Context) error {
 	case commands.ReturnToMainMenu:
 		return h.handleStart(c)
 	default:
-		return h.sendTextMessage(c, "Invalid action. Please try again.", nil)
+		return h.sendTextMessage(c, "❌ <b>Invalid Action</b>\n\nPlease select one of the available options from the menu.", h.createUserActionKeyboard())
 	}
 }
 
@@ -477,14 +506,14 @@ func (h *AdminHandler) createUserActionKeyboard() *telebot.ReplyMarkup {
 
 	markup.Reply(
 		telebot.Row{
-			telebot.Btn{Text: commands.ViewConfig},
+			telebot.Btn{Text: "🔗 " + commands.ViewConfig},
 		},
 		telebot.Row{
-			telebot.Btn{Text: commands.ResetTraffic},
-			telebot.Btn{Text: commands.Delete},
+			telebot.Btn{Text: "🔄 " + commands.ResetTraffic},
+			telebot.Btn{Text: "🗑️ " + commands.Delete},
 		},
 		telebot.Row{
-			telebot.Btn{Text: commands.ReturnToMainMenu},
+			telebot.Btn{Text: "↩️ " + commands.ReturnToMainMenu},
 		},
 	)
 
@@ -528,14 +557,14 @@ func (h *AdminHandler) handleViewConfig(c telebot.Context, username string) erro
 	}
 
 	if foundClientSubID == "" {
-		return h.sendTextMessage(c, fmt.Sprintf("No clients found with base name %s", username), h.createUserActionKeyboard())
+		return h.sendTextMessage(c, fmt.Sprintf("❌ <b>User Not Found</b>\n\nNo configuration found for user '%s'. The user may have been deleted or never existed.", username), h.createUserActionKeyboard())
 	}
 
 	// Get subscription URL using SubID (same format as when adding user)
 	subURL := fmt.Sprintf("https://iris.xele.one:2096/sub/%s?name=%s", foundClientSubID, foundClientSubID)
 
 	// Send subscription URL with user action keyboard (stays in same state)
-	err = h.sendTextMessage(c, fmt.Sprintf("Subscription URL for %s:\n\n%s", username, subURL), h.createUserActionKeyboard())
+	err = h.sendTextMessage(c, fmt.Sprintf("🔗 <b>Configuration for %s</b>\n\n📋 <b>Subscription URL:</b>\n<code>%s</code>\n\n<i>Copy this link to your VPN client or scan the QR code below</i>", username, subURL), h.createUserActionKeyboard())
 	if err != nil {
 		return err
 	}
@@ -548,11 +577,14 @@ func (h *AdminHandler) handleViewConfig(c telebot.Context, username string) erro
 func (h *AdminHandler) handleResetTraffic(c telebot.Context, username string) error {
 	h.logger.Infof("Starting reset traffic for user: %s", username)
 
+	// Send loading message
+	loadingMsg, _ := h.sendTextMessageWithReturn(c, fmt.Sprintf("⏳ <b>Resetting Traffic...</b>\n\nResetting traffic statistics for user '%s'. Please wait...", username), nil)
+
 	// Get all inbounds
 	inbounds, err := h.xrayService.GetInbounds(context.Background())
 	if err != nil {
 		h.logger.Errorf("Failed to get inbounds: %v", err)
-		return h.sendTextMessage(c, fmt.Sprintf("Failed to get inbounds: %v", err), h.createUserActionKeyboard())
+		return h.sendTextMessage(c, "❌ <b>Connection Error</b>\n\nCouldn't retrieve server data. Please check your connection and try again.", h.createUserActionKeyboard())
 	}
 
 	// Find all clients with the base username and reset their traffic
@@ -580,15 +612,20 @@ func (h *AdminHandler) handleResetTraffic(c telebot.Context, username string) er
 	// Send result message
 	var message string
 	if successfullyReset > 0 {
-		message = fmt.Sprintf("Traffic reset successfully for %s!", username)
+		message = fmt.Sprintf("✅ <b>Traffic Reset Complete</b>\n\n🔄 Successfully reset traffic for user <b>%s</b> (%d configurations)", username, successfullyReset)
 		if len(resetErrors) > 0 {
-			message += fmt.Sprintf("\n\nSome errors occurred:\n%s", strings.Join(resetErrors, "\n"))
+			message += fmt.Sprintf("\n\n⚠️ <b>Some errors occurred:</b>\n%s", strings.Join(resetErrors, "\n"))
 		}
 	} else {
-		message = fmt.Sprintf("No clients found with base name %s to reset traffic.", username)
+		message = fmt.Sprintf("❌ <b>Reset Failed</b>\n\nNo active configurations found for user '%s'.", username)
 		if len(resetErrors) > 0 {
-			message += fmt.Sprintf("\n\nErrors:\n%s", strings.Join(resetErrors, "\n"))
+			message += fmt.Sprintf("\n\n<b>Errors:</b>\n%s", strings.Join(resetErrors, "\n"))
 		}
+	}
+
+	// Delete loading message
+	if loadingMsg != nil {
+		c.Bot().Delete(loadingMsg)
 	}
 
 	return h.sendTextMessage(c, message, h.createUserActionKeyboard())
@@ -604,13 +641,18 @@ func (h *AdminHandler) handleConfirmDelete(c telebot.Context, username string) e
 	}
 	// Показать клавиатуру подтверждения
 	markup := h.createConfirmKeyboard()
-	return h.sendTextMessage(c, fmt.Sprintf("⚠️ <b>Confirm User Deletion</b>\n\nAre you sure you want to delete user <b>%s</b>?\n\nThis will remove the user from ALL inbounds and cannot be undone.", username), markup)
+	return h.sendTextMessage(c, fmt.Sprintf("🗑️ <b>Confirm User Deletion</b>\n\n⚠️ You are about to permanently delete user <b>%s</b>\n\n<b>This action will:</b>\n• Remove user from all server configurations\n• Delete all associated data\n• Cannot be undone\n\nAre you absolutely sure?", username), markup)
 }
 
 // processConfirmDeletion processes the deletion confirmation
 func (h *AdminHandler) processConfirmDeletion(c telebot.Context) error {
-	// Get confirmation from message
+	// Get confirmation from message and strip emoji prefix
 	confirmation := c.Text()
+	if len(confirmation) > 2 && confirmation[0] != '/' {
+		if spaceIndex := strings.Index(confirmation, " "); spaceIndex > 0 {
+			confirmation = confirmation[spaceIndex+1:]
+		}
+	}
 
 	// If user wants to cancel, return to main menu
 	if confirmation == commands.ReturnToMainMenu {
@@ -619,7 +661,7 @@ func (h *AdminHandler) processConfirmDeletion(c telebot.Context) error {
 
 	// Check if user confirmed
 	if confirmation != commands.Confirm {
-		return h.sendTextMessage(c, "Invalid action. Please confirm deletion or return to main menu.", nil)
+		return h.sendTextMessage(c, "❌ <b>Invalid Selection</b>\n\nPlease click Confirm to proceed with deletion or use the Return button to cancel.", h.createConfirmKeyboard())
 	}
 
 	// Get user state to get the username we want to delete
@@ -630,19 +672,27 @@ func (h *AdminHandler) processConfirmDeletion(c telebot.Context) error {
 	}
 
 	if userState.Payload == nil {
-		return h.sendTextMessage(c, "Error: No user selected for deletion", h.createReturnKeyboard())
+		return h.sendTextMessage(c, "❌ <b>Session Error</b>\n\nUser data was lost. Please start the deletion process again.", h.createReturnKeyboard())
 	}
 
 	username := *userState.Payload
 
+	// Send loading message
+	loadingMsg, _ := h.sendTextMessageWithReturn(c, fmt.Sprintf("⏳ <b>Deleting User...</b>\n\nRemoving user '%s' from all server configurations. Please wait...", username), nil)
+
 	// Delete client using email
 	err = h.xrayService.RemoveClients(context.Background(), []string{username})
-	if err != nil {
-		h.logger.Errorf("Failed to delete client: %v", err)
-		return h.sendTextMessage(c, fmt.Sprintf("Failed to delete client: %v", err), nil)
+	// Delete loading message
+	if loadingMsg != nil {
+		c.Bot().Delete(loadingMsg)
 	}
 
-	return h.sendTextMessage(c, fmt.Sprintf("Client %s deleted successfully.", username), h.createReturnKeyboard())
+	if err != nil {
+		h.logger.Errorf("Failed to delete client: %v", err)
+		return h.sendTextMessage(c, fmt.Sprintf("❌ <b>Deletion Failed</b>\n\nCouldn't delete user '%s'. Please try again or contact administrator.\n\n<b>Error:</b> %v", username, err), h.createReturnKeyboard())
+	}
+
+	return h.sendTextMessage(c, fmt.Sprintf("✅ <b>User Deleted Successfully</b>\n\n🗑️ User '%s' has been permanently removed from all server configurations.", username), h.createReturnKeyboard())
 }
 
 // handleGetDetailedUsersInfo handles the Detailed Usage command
@@ -652,7 +702,7 @@ func (h *AdminHandler) handleGetDetailedUsersInfo(c telebot.Context) error {
 	inbounds, err := h.xrayService.GetInbounds(context.Background())
 	if err != nil {
 		h.logger.Errorf("Failed to get inbounds: %v", err)
-		return h.sendTextMessage(c, fmt.Sprintf("Failed to get inbounds: %v", err), nil)
+		return h.sendTextMessage(c, "❌ <b>Connection Error</b>\n\nCouldn't retrieve detailed usage data. Please check your server connection and try again.", h.createMainKeyboard(permissions.Admin))
 	}
 
 	// Format detailed user information report
@@ -669,10 +719,10 @@ func (h *AdminHandler) createConfirmKeyboard() *telebot.ReplyMarkup {
 
 	markup.Reply(
 		telebot.Row{
-			telebot.Btn{Text: commands.Confirm},
+			telebot.Btn{Text: "✅ " + commands.Confirm},
 		},
 		telebot.Row{
-			telebot.Btn{Text: commands.ReturnToMainMenu},
+			telebot.Btn{Text: "↩️ " + commands.ReturnToMainMenu},
 		},
 	)
 
@@ -681,8 +731,13 @@ func (h *AdminHandler) createConfirmKeyboard() *telebot.ReplyMarkup {
 
 // processConfirmResetUsersNetworkUsage processes the confirmation for resetting network usage
 func (h *AdminHandler) processConfirmResetUsersNetworkUsage(c telebot.Context) error {
-	// Get confirmation from message
+	// Get confirmation from message and strip emoji prefix
 	confirmation := c.Text()
+	if len(confirmation) > 2 && confirmation[0] != '/' {
+		if spaceIndex := strings.Index(confirmation, " "); spaceIndex > 0 {
+			confirmation = confirmation[spaceIndex+1:]
+		}
+	}
 
 	// If user wants to cancel, return to main menu
 	if confirmation == commands.ReturnToMainMenu {
@@ -691,16 +746,19 @@ func (h *AdminHandler) processConfirmResetUsersNetworkUsage(c telebot.Context) e
 
 	// Check if user confirmed
 	if confirmation != commands.Confirm {
-		return h.sendTextMessage(c, "Invalid action. Please confirm reset or return to main menu.", nil)
+		return h.sendTextMessage(c, "❌ <b>Invalid Selection</b>\n\nPlease click Confirm to proceed with reset or use the Return button to cancel.", h.createConfirmKeyboard())
 	}
 
 	h.logger.Infof("Starting reset network usage for all users")
+
+	// Send loading message
+	loadingMsg, _ := h.sendTextMessageWithReturn(c, "⏳ <b>Resetting All Traffic...</b>\n\nThis may take a few moments. Resetting traffic statistics for all users across all servers...", nil)
 
 	// Get all inbounds
 	inbounds, err := h.xrayService.GetInbounds(context.Background())
 	if err != nil {
 		h.logger.Errorf("Failed to get inbounds: %v", err)
-		return h.sendTextMessage(c, fmt.Sprintf("Failed to get inbounds: %v", err), h.createMainKeyboard(permissions.Admin))
+		return h.sendTextMessage(c, "❌ <b>Connection Error</b>\n\nCouldn't retrieve server data for reset operation. Please check your connection and try again.", h.createMainKeyboard(permissions.Admin))
 	}
 
 	// Collect all user emails from all inbounds
@@ -722,7 +780,7 @@ func (h *AdminHandler) processConfirmResetUsersNetworkUsage(c telebot.Context) e
 	}
 
 	if len(userEmails) == 0 {
-		return h.sendTextMessage(c, "No users found to reset traffic.", h.createMainKeyboard(permissions.Admin))
+		return h.sendTextMessage(c, "📭 <b>No Users Found</b>\n\nThere are no users in the system to reset traffic for.", h.createMainKeyboard(permissions.Admin))
 	}
 
 	h.logger.Infof("Found %d users to reset traffic", len(userEmails))
@@ -745,12 +803,17 @@ func (h *AdminHandler) processConfirmResetUsersNetworkUsage(c telebot.Context) e
 	// Send result message
 	var message string
 	if successfullyReset > 0 {
-		message = fmt.Sprintf("Users traffic consumption data has been successfully reset!\n\nReset traffic for %d users.", successfullyReset)
+		message = fmt.Sprintf("✅ <b>Mass Traffic Reset Complete</b>\n\n🔄 Successfully reset traffic for <b>%d users</b>\n\n<i>All user traffic counters have been set to zero</i>", successfullyReset)
 		if len(resetErrors) > 0 {
-			message += fmt.Sprintf("\n\nSome errors occurred:\n%s", strings.Join(resetErrors, "\n"))
+			message += fmt.Sprintf("\n\n⚠️ <b>Some errors occurred:</b>\n%s", strings.Join(resetErrors, "\n"))
 		}
 	} else {
-		message = fmt.Sprintf("Failed to reset traffic for any users.\n\nErrors:\n%s", strings.Join(resetErrors, "\n"))
+		message = fmt.Sprintf("❌ <b>Mass Reset Failed</b>\n\nCouldn't reset traffic for any users.\n\n<b>Errors:</b>\n%s", strings.Join(resetErrors, "\n"))
+	}
+
+	// Delete loading message
+	if loadingMsg != nil {
+		c.Bot().Delete(loadingMsg)
 	}
 
 	// Clear user state and return to main menu

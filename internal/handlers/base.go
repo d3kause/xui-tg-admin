@@ -61,6 +61,23 @@ func (h *BaseHandler) sendTextMessage(c telebot.Context, text string, markup *te
 	return err
 }
 
+// sendTextMessageWithReturn sends a text message and returns the message for deletion
+func (h *BaseHandler) sendTextMessageWithReturn(c telebot.Context, text string, markup *telebot.ReplyMarkup) (*telebot.Message, error) {
+	opts := &telebot.SendOptions{
+		ParseMode: telebot.ModeHTML,
+	}
+
+	if markup != nil {
+		opts.ReplyMarkup = markup
+	}
+
+	msg, err := c.Bot().Send(c.Recipient(), text, opts)
+	if err != nil {
+		h.logger.Errorf("Failed to send message: %v", err)
+	}
+	return msg, err
+}
+
 // sendQRCode sends a QR code for the given URL
 func (h *BaseHandler) sendQRCode(c telebot.Context, url string) error {
 	// Generate QR code
@@ -94,38 +111,29 @@ func (h *BaseHandler) createMainKeyboard(accessType permissions.AccessType) *tel
 	case permissions.Admin:
 		rows = []telebot.Row{
 			{
-				telebot.Btn{Text: commands.AddMember},
-				telebot.Btn{Text: commands.OnlineMembers},
+				telebot.Btn{Text: "👤 " + commands.AddMember},
+				telebot.Btn{Text: "🟢 " + commands.OnlineMembers},
 			},
 			{
-				telebot.Btn{Text: commands.EditMember},
-				//	telebot.Btn{Text: commands.DeleteMember}, // TODO: go to edit member
-				telebot.Btn{Text: commands.DetailedUsage},
+				telebot.Btn{Text: "✏️ " + commands.EditMember},
+				telebot.Btn{Text: "📈 " + commands.DetailedUsage},
 			},
-
 			{
-				telebot.Btn{Text: commands.ResetNetworkUsage},
+				telebot.Btn{Text: "🔄 " + commands.ResetNetworkUsage},
 			},
-			//	{
-			//	telebot.Btn{Text: commands.NetworkUsage}, TODO: Go to detailed usage
-			//		telebot.Btn{Text: commands.DetailedUsage},
-			////	},
-			//{
-			//	telebot.Btn{Text: commands.ResetNetworkUsage},
-			//},
 		}
 	case permissions.Member:
 		rows = []telebot.Row{
 			{
-				telebot.Btn{Text: commands.CreateNewConfig},
-				telebot.Btn{Text: commands.ViewConfigsInfo},
+				telebot.Btn{Text: "⚙️ " + commands.CreateNewConfig},
+				telebot.Btn{Text: "📋 " + commands.ViewConfigsInfo},
 			},
 		}
 	case permissions.Demo:
 		rows = []telebot.Row{
 			{
-				telebot.Btn{Text: commands.About},
-				telebot.Btn{Text: commands.Help},
+				telebot.Btn{Text: "ℹ️ " + commands.About},
+				telebot.Btn{Text: "❓ " + commands.Help},
 			},
 		}
 	}
@@ -142,7 +150,7 @@ func (h *BaseHandler) createReturnKeyboard() *telebot.ReplyMarkup {
 
 	markup.Reply(
 		telebot.Row{
-			telebot.Btn{Text: commands.ReturnToMainMenu},
+			telebot.Btn{Text: "↩️ " + commands.ReturnToMainMenu},
 		},
 	)
 
@@ -157,8 +165,8 @@ func (h *BaseHandler) createConfirmKeyboard() *telebot.ReplyMarkup {
 
 	markup.Reply(
 		telebot.Row{
-			telebot.Btn{Text: commands.Confirm},
-			telebot.Btn{Text: commands.Cancel},
+			telebot.Btn{Text: "✅ " + commands.Confirm},
+			telebot.Btn{Text: "❌ " + commands.Cancel},
 		},
 	)
 
