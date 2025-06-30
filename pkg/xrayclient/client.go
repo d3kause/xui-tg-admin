@@ -416,18 +416,18 @@ func (c *Client) ResetUserTraffic(ctx context.Context, inboundID int, email stri
 
 	cookies, _ := c.cookieCache.Get("session")
 
+	c.logger.Debugf("Resetting traffic for client %s in inbound %d", email, inboundID)
+
 	resp, err := c.httpClient.R().
 		SetContext(ctx).
 		SetCookies(cookies.([]*http.Cookie)).
-		SetBody(map[string]interface{}{
-			"id":    inboundID,
-			"email": email,
-		}).
-		Post(fmt.Sprintf("%s/xui/API/inbounds/resetClientTraffic", c.serverConfig.APIURL))
+		Post(fmt.Sprintf("%s/xui/API/inbounds/%d/resetClientTraffic/%s", c.serverConfig.APIURL, inboundID, email))
 
 	if err != nil {
 		return fmt.Errorf("reset user traffic request failed: %w", err)
 	}
+
+	c.logger.Debugf("Reset traffic response status: %d, body: %s", resp.StatusCode(), string(resp.Body()))
 
 	if resp.StatusCode() != http.StatusOK {
 		// If unauthorized, try to login again
@@ -435,7 +435,7 @@ func (c *Client) ResetUserTraffic(ctx context.Context, inboundID int, email stri
 			c.cookieCache.Delete("session")
 			return c.ResetUserTraffic(ctx, inboundID, email)
 		}
-		return fmt.Errorf("reset user traffic failed with status code: %d", resp.StatusCode())
+		return fmt.Errorf("reset user traffic failed with status code: %d, response: %s", resp.StatusCode(), string(resp.Body()))
 	}
 
 	var apiResp XrayAPIResponse

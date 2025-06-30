@@ -72,8 +72,6 @@ func (h *AdminHandler) Handle(ctx context.Context, c telebot.Context) error {
 		return h.processMemberAction(c)
 	case models.AwaitConfirmMemberDeletion:
 		return h.processConfirmDeletion(c)
-	case models.AwaitConfirmResetUsersNetworkUsage:
-		return h.processConfirmReset(c)
 	case models.AwaitExtendDuration:
 		return h.processExtendDuration(c)
 	default:
@@ -287,48 +285,72 @@ func (h *AdminHandler) handleGetUsersNetworkUsage(c telebot.Context) error {
 
 // handleResetUsersNetworkUsage handles the Reset Network Usage command
 func (h *AdminHandler) handleResetUsersNetworkUsage(c telebot.Context) error {
+	h.logger.Infof("Starting reset network usage for all users")
 
-	// Проверяем доступность сервиса
-	_, err := h.stateService.GetState(c.Sender().ID)
+	// Get all inbounds
+	inbounds, err := h.xrayService.GetInbounds(context.Background())
 	if err != nil {
-		h.logger.Errorf("Failed to get user state: %v", err)
-		return err
+		h.logger.Errorf("Failed to get inbounds: %v", err)
+		return h.sendTextMessage(c, fmt.Sprintf("Failed to get inbounds: %v", err), h.createMainKeyboard(permissions.Admin))
 	}
 
-	// Get all members
-	members, err := h.xrayService.GetAllMembers(context.Background())
+	// Collect all user emails from all inbounds
+	var userEmails []struct {
+		inboundID int
+		email     string
+	}
+
+	for _, inbound := range inbounds {
+		for _, clientStat := range inbound.ClientStats {
+			userEmails = append(userEmails, struct {
+				inboundID int
+				email     string
+			}{
+				inboundID: inbound.ID,
+				email:     clientStat.Email,
+			})
+		}
+	}
+
+	if len(userEmails) == 0 {
+		return h.sendTextMessage(c, "No users found to reset traffic.", h.createMainKeyboard(permissions.Admin))
+	}
+
+	h.logger.Infof("Found %d users to reset traffic", len(userEmails))
+
+	// Reset traffic for all users
+	var resetErrors []string
+	successfullyReset := 0
+
+	for _, user := range userEmails {
+		err := h.xrayService.ResetUserTraffic(context.Background(), user.inboundID, user.email)
+		if err != nil {
+			h.logger.Errorf("Failed to reset traffic for %s in inbound %d: %v", user.email, user.inboundID, err)
+			resetErrors = append(resetErrors, fmt.Sprintf("Failed to reset %s in inbound %d: %v", user.email, user.inboundID, err))
+		} else {
+			h.logger.Infof("Successfully reset traffic for %s in inbound %d", user.email, user.inboundID)
+			successfullyReset++
+		}
+	}
+
+	// Send result message
+	var message string
+	if successfullyReset > 0 {
+		message = fmt.Sprintf("Users traffic consumption data has been successfully reset!\n\nReset traffic for %d users.", successfullyReset)
+		if len(resetErrors) > 0 {
+			message += fmt.Sprintf("\n\nSome errors occurred:\n%s", strings.Join(resetErrors, "\n"))
+		}
+	} else {
+		message = fmt.Sprintf("Failed to reset traffic for any users.\n\nErrors:\n%s", strings.Join(resetErrors, "\n"))
+	}
+
+	// Clear user state and return to main menu
+	err = h.stateService.ClearState(c.Sender().ID)
 	if err != nil {
-		h.logger.Errorf("Failed to get members: %v", err)
-		return h.sendTextMessage(c, fmt.Sprintf("Failed to get members: %v", err), nil)
+		h.logger.Errorf("Failed to clear user state: %v", err)
 	}
 
-	if len(members) == 0 {
-		return h.sendTextMessage(c, "No members found.", h.createReturnKeyboard())
-	}
-
-	// Create keyboard with member names
-	markup := &telebot.ReplyMarkup{
-		ResizeKeyboard: true,
-	}
-
-	var rows []telebot.Row
-	for _, name := range members {
-		rows = append(rows, telebot.Row{telebot.Btn{Text: name}})
-	}
-
-	// Add return button
-	rows = append(rows, telebot.Row{telebot.Btn{Text: commands.ReturnToMainMenu}})
-
-	markup.Reply(rows...)
-
-	// Set state to awaiting user selection for reset
-	err = h.stateService.WithConversationState(c.Sender().ID, models.AwaitConfirmResetUsersNetworkUsage)
-	if err != nil {
-		h.logger.Errorf("Failed to set state: %v", err)
-		return err
-	}
-
-	return h.sendTextMessage(c, "Please select a member to reset network usage:", markup)
+	return h.sendTextMessage(c, message, h.createMainKeyboard(permissions.Admin))
 }
 
 // processUserName processes the username input
@@ -658,15 +680,6 @@ func (h *AdminHandler) processConfirmDeletion(c telebot.Context) error {
 	}
 
 	return h.sendTextMessage(c, fmt.Sprintf("Client %s deleted successfully.", username), h.createReturnKeyboard())
-}
-
-// processConfirmReset processes the reset confirmation
-func (h *AdminHandler) processConfirmReset(c telebot.Context) error {
-	username := c.Text()
-	if username == commands.ReturnToMainMenu {
-		return h.handleStart(c)
-	}
-	return h.resetClientTraffic(context.Background(), c, username)
 }
 
 // handleGetDetailedUsersInfo handles the Detailed Usage command
