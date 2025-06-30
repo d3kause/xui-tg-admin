@@ -35,5 +35,5 @@ const (
 	Confirm = "Confirm"
 
 	// Duration options
-	Infinite = "∞ Infinite"
+	Infinite = "Infinite"
 )

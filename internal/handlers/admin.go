@@ -96,19 +96,37 @@ func (h *AdminHandler) initializeCommands() {
 	}
 }
 
-// handleDefaultState handles the default state
-func (h *AdminHandler) handleDefaultState(c telebot.Context) error {
-	// Strip emoji prefixes from button text to match commands
-	text := c.Text()
-	// Remove emoji prefixes (find text after first space if emoji is present)
+// getButtonCommand extracts the command from button text with emoji
+func (h *AdminHandler) getButtonCommand(text string) string {
+	// Check for specific button patterns
+	switch text {
+	case "↩️ " + commands.ReturnToMainMenu:
+		return commands.ReturnToMainMenu
+	case "∞ " + commands.Infinite:
+		return commands.Infinite
+	case "✅ " + commands.Confirm:
+		return commands.Confirm
+	case "❌ " + commands.Cancel:
+		return commands.Cancel
+	}
+
+	// For other buttons, try to extract command after emoji
 	if len(text) > 2 && text[0] != '/' {
 		if spaceIndex := strings.Index(text, " "); spaceIndex > 0 {
-			text = text[spaceIndex+1:]
+			return text[spaceIndex+1:]
 		}
 	}
 
-	// Check if we have a command handler for this text
-	if handler, ok := h.commandHandlers[text]; ok {
+	return text
+}
+
+// handleDefaultState handles the default state
+func (h *AdminHandler) handleDefaultState(c telebot.Context) error {
+	text := c.Text()
+	command := h.getButtonCommand(text)
+
+	// Check if we have a command handler for this command
+	if handler, ok := h.commandHandlers[command]; ok {
 		return handler(c)
 	}
 
@@ -139,7 +157,7 @@ func (h *AdminHandler) handleStart(c telebot.Context) error {
 	}
 
 	// For return to main menu, show only the keyboard without any message
-	return c.Send("🏠 <b>Main Menu</b>\n\nSelect an action:", markup)
+	return h.sendTextMessage(c, "🏠 <b>Main Menu</b>\n\nSelect an action:", markup)
 }
 
 // handleAddMember handles the Add Member command
@@ -316,8 +334,8 @@ func (h *AdminHandler) processUserName(c telebot.Context) error {
 	// Get username from message
 	username := c.Text()
 
-	// Validate username
-	if username == commands.ReturnToMainMenu {
+	// Check for return to main menu
+	if h.getButtonCommand(username) == commands.ReturnToMainMenu {
 		return h.handleStart(c)
 	}
 
@@ -358,20 +376,16 @@ func (h *AdminHandler) processUserName(c telebot.Context) error {
 
 // processDuration processes the duration input
 func (h *AdminHandler) processDuration(c telebot.Context) error {
-	// Get duration from message and strip emoji prefix
+	// Get duration from message
 	durationStr := c.Text()
 
-	// Strip emoji prefixes for buttons
-	if len(durationStr) > 2 && durationStr[0] != '/' {
-		if spaceIndex := strings.Index(durationStr, " "); spaceIndex > 0 {
-			durationStr = durationStr[spaceIndex+1:]
-		}
-	}
-
-	// Validate duration
-	if durationStr == commands.ReturnToMainMenu {
+	// Check for return to main menu
+	if h.getButtonCommand(durationStr) == commands.ReturnToMainMenu {
 		return h.handleStart(c)
 	}
+
+	// Extract command from button text
+	durationStr = h.getButtonCommand(durationStr)
 
 	// Get user state
 	userState, err := h.stateService.GetState(c.Sender().ID)
@@ -434,8 +448,8 @@ func (h *AdminHandler) processSelectUser(c telebot.Context) error {
 	// Get username from message
 	username := c.Text()
 
-	// Validate username
-	if username == commands.ReturnToMainMenu {
+	// Check for return to main menu
+	if h.getButtonCommand(username) == commands.ReturnToMainMenu {
 		return h.handleStart(c)
 	}
 
@@ -461,12 +475,12 @@ func (h *AdminHandler) processSelectUser(c telebot.Context) error {
 
 // processMemberAction processes the member action selection
 func (h *AdminHandler) processMemberAction(c telebot.Context) error {
-	// Get action from message and strip emoji prefix
+	// Get action from message
 	action := c.Text()
-	if len(action) > 2 && action[0] != '/' {
-		if spaceIndex := strings.Index(action, " "); spaceIndex > 0 {
-			action = action[spaceIndex+1:]
-		}
+
+	// Check for return to main menu first
+	if h.getButtonCommand(action) == commands.ReturnToMainMenu {
+		return h.handleStart(c)
 	}
 
 	// Проверяем доступность сервиса
@@ -491,8 +505,6 @@ func (h *AdminHandler) processMemberAction(c telebot.Context) error {
 		return h.handleResetTraffic(c, username)
 	case commands.Delete:
 		return h.handleConfirmDelete(c, username)
-	case commands.ReturnToMainMenu:
-		return h.handleStart(c)
 	default:
 		return h.sendTextMessage(c, "❌ <b>Invalid Action</b>\n\nPlease select one of the available options from the menu.", h.createUserActionKeyboard())
 	}
@@ -646,21 +658,16 @@ func (h *AdminHandler) handleConfirmDelete(c telebot.Context, username string) e
 
 // processConfirmDeletion processes the deletion confirmation
 func (h *AdminHandler) processConfirmDeletion(c telebot.Context) error {
-	// Get confirmation from message and strip emoji prefix
+	// Get confirmation from message
 	confirmation := c.Text()
-	if len(confirmation) > 2 && confirmation[0] != '/' {
-		if spaceIndex := strings.Index(confirmation, " "); spaceIndex > 0 {
-			confirmation = confirmation[spaceIndex+1:]
-		}
-	}
 
-	// If user wants to cancel, return to main menu
-	if confirmation == commands.ReturnToMainMenu {
+	// Check for return to main menu
+	if h.getButtonCommand(confirmation) == commands.ReturnToMainMenu {
 		return h.handleStart(c)
 	}
 
 	// Check if user confirmed
-	if confirmation != commands.Confirm {
+	if h.getButtonCommand(confirmation) != commands.Confirm {
 		return h.sendTextMessage(c, "❌ <b>Invalid Selection</b>\n\nPlease click Confirm to proceed with deletion or use the Return button to cancel.", h.createConfirmKeyboard())
 	}
 
@@ -731,21 +738,16 @@ func (h *AdminHandler) createConfirmKeyboard() *telebot.ReplyMarkup {
 
 // processConfirmResetUsersNetworkUsage processes the confirmation for resetting network usage
 func (h *AdminHandler) processConfirmResetUsersNetworkUsage(c telebot.Context) error {
-	// Get confirmation from message and strip emoji prefix
+	// Get confirmation from message
 	confirmation := c.Text()
-	if len(confirmation) > 2 && confirmation[0] != '/' {
-		if spaceIndex := strings.Index(confirmation, " "); spaceIndex > 0 {
-			confirmation = confirmation[spaceIndex+1:]
-		}
-	}
 
-	// If user wants to cancel, return to main menu
-	if confirmation == commands.ReturnToMainMenu {
+	// Check for return to main menu
+	if h.getButtonCommand(confirmation) == commands.ReturnToMainMenu {
 		return h.handleStart(c)
 	}
 
 	// Check if user confirmed
-	if confirmation != commands.Confirm {
+	if h.getButtonCommand(confirmation) != commands.Confirm {
 		return h.sendTextMessage(c, "❌ <b>Invalid Selection</b>\n\nPlease click Confirm to proceed with reset or use the Return button to cancel.", h.createConfirmKeyboard())
 	}
 

@@ -22,24 +22,26 @@
 ### 🌟 Key advantages
 
 - **🔐 Role-based system**: Admin, User, Demo mode
-- **📱 User-friendly interface**: Intuitive buttons and menus
+- **📱 User-friendly interface**: Intuitive buttons and menus with proper HTML formatting
 - **⚡ Fast operation**: Session caching and optimized requests
 - **🔄 Automation**: Bulk operations and automatic management
-- **📊 Monitoring**: Real-time traffic statistics
+- **📊 Monitoring**: Real-time traffic statistics and connection status
 - **🔒 Security**: Access control verification and data validation
+- **🎯 Smart navigation**: Universal button command handling with emoji support
 
 ---
 
 ## 📋 Features
 
 ### 👑 Administrator
-- ✅ **User creation** with expiration time settings
-- 🔄 **Traffic management** (reset, monitoring)
-- 👥 **Online users view**
-- 📊 **Detailed usage statistics**
-- 🗑️ **User deletion** with confirmation
+- ✅ **User creation** with expiration time settings (including infinite duration)
+- 🔄 **Traffic management** (reset individual or all users)
+- 👥 **Online users view** with real-time connection status
+- 📊 **Detailed usage statistics** with aggregated data
+- 🗑️ **User deletion** with confirmation dialogs
 - 🔗 **QR code generation** for configurations
 - ⚙️ **Bulk operations** (reset traffic for all users)
+- 🎯 **Smart navigation** with universal return buttons
 
 ### 👤 User
 - 🔗 **View own configurations**
@@ -81,17 +83,18 @@ docker-compose up -d
 git clone https://github.com/yourusername/xui-tg-admin.git
 cd xui-tg-admin
 go mod download
-go build -o bot ./cmd/bot
+go build -o xui-tg-admin ./cmd/bot
 
 # 2. Set environment variables
 export TG_TOKEN=your_telegram_bot_token
 export TG_ADMIN_IDS=123456789,987654321
+export XRAY_SERVER=my-server
 export XRAY_USER=admin
 export XRAY_PASSWORD=password123
 export XRAY_API_URL=http://localhost:8080/api
 
 # 3. Run
-./bot
+./xui-tg-admin
 ```
 
 ---
@@ -101,17 +104,18 @@ export XRAY_API_URL=http://localhost:8080/api
 ### 📝 Configuration example
 
 ```env
-# Telegram Bot
-TG_TOKEN=123456789:ABCdefGHIjklMNOpqrSTUvwxYZ
+# Telegram Bot Configuration
+TG_TOKEN=1234567890:ABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890
 TG_ADMIN_IDS=123456789,987654321
 
-# X-UI Panel
+# X-ray Server Configuration
+XRAY_SERVER=my-server
 XRAY_USER=admin
 XRAY_PASSWORD=secure_password_123
 XRAY_API_URL=http://your-server.com:54321/api
 XRAY_SUB_URL_PREFIX=http://your-server.com:54321/sub
 
-# Logging
+# Logging Configuration
 LOG_LEVEL=info
 ```
 
@@ -119,8 +123,9 @@ LOG_LEVEL=info
 
 | Variable | Description | Required | Example |
 |----------|-------------|----------|---------|
-| `TG_TOKEN` | Telegram Bot Token | ✅ | `123456789:ABCdef...` |
+| `TG_TOKEN` | Telegram Bot Token | ✅ | `1234567890:ABCdef...` |
 | `TG_ADMIN_IDS` | Admin IDs (comma-separated) | ✅ | `123456789,987654321` |
+| `XRAY_SERVER` | X-UI server identifier | ✅ | `my-server` |
 | `XRAY_USER` | X-UI panel login | ✅ | `admin` |
 | `XRAY_PASSWORD` | X-UI panel password | ✅ | `password123` |
 | `XRAY_API_URL` | X-UI panel API URL | ✅ | `http://server.com:54321/api` |
@@ -136,9 +141,9 @@ LOG_LEVEL=info
 #### Main menu
 ```
 ┌─────────────────────────┐
-│    ⚙️ Main Menu         │
+│    🏠 Main Menu         │
 ├─────────────────────────┤
-│  👤 Add Member  │ 📊 Online │
+│  👤 Add Member  │ 🟢 Online │
 │  ✏️ Edit Member │ 📈 Detailed│
 │  🔄 Reset Network Usage │
 └─────────────────────────┘
@@ -170,7 +175,7 @@ LOG_LEVEL=info
 
 1. **User creation**:
    ```
-   Add Member → Enter name → Choose duration → ✅ Done!
+   Add Member → Enter name → Choose duration (∞ Infinite available) → ✅ Done!
    ```
 
 2. **User management**:
@@ -180,9 +185,17 @@ LOG_LEVEL=info
 
 3. **Monitoring**:
    ```
-   Online Members → Active list
-   Detailed Usage → Traffic statistics
+   Online Members → Active list with real-time status
+   Detailed Usage → Traffic statistics with aggregation
    ```
+
+### 🎯 Smart Navigation
+
+The bot features universal button handling:
+- **↩️ Return to Main Menu** - Works from any state
+- **∞ Infinite** - For unlimited duration subscriptions
+- **✅ Confirm** - For confirmation dialogs
+- **❌ Cancel** - For cancellation
 
 ---
 
@@ -194,8 +207,12 @@ LOG_LEVEL=info
 xui-tg-admin/
 ├── 📂 cmd/bot/           # Application entry point
 ├── 📂 internal/          # Internal logic
+│   ├── 📂 commands/      # Command constants
 │   ├── 📂 config/        # Configuration
+│   ├── 📂 constants/     # Application constants
+│   ├── 📂 errors/        # Error handling
 │   ├── 📂 handlers/      # Telegram handlers
+│   ├── 📂 helpers/       # Helper functions
 │   ├── 📂 models/        # Data models
 │   ├── 📂 permissions/   # Access control system
 │   ├── 📂 services/      # Business logic
@@ -208,10 +225,11 @@ xui-tg-admin/
 
 ### 🔧 Main components
 
-- **`handlers/`** - Telegram message handlers with role system
+- **`handlers/`** - Telegram message handlers with role system and smart button handling
 - **`services/`** - Business logic and X-UI API integration
-- **`xrayclient/`** - HTTP client for X-UI API
+- **`xrayclient/`** - HTTP client for X-UI API with session management
 - **`permissions/`** - Role and access control system
+- **`commands/`** - Centralized command constants
 
 ---
 
@@ -221,10 +239,10 @@ xui-tg-admin/
 
 ```bash
 # Development build
-go build -o bot ./cmd/bot
+go build -o xui-tg-admin ./cmd/bot
 
 # Production build
-CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o bot ./cmd/bot
+CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o xui-tg-admin ./cmd/bot
 ```
 
 ### 🧪 Testing
@@ -246,6 +264,22 @@ LOG_LEVEL=info   # Information messages
 LOG_LEVEL=warn   # Warnings only
 LOG_LEVEL=error  # Errors only
 ```
+
+---
+
+## 🆕 Recent Updates
+
+### ✅ Fixed Issues
+- **Smart button handling**: Universal command extraction from emoji buttons
+- **HTML formatting**: Proper `<b>` tags rendering in all messages
+- **Navigation**: Return to Main Menu works from any state
+- **User experience**: Improved error messages and confirmation dialogs
+
+### 🎯 Key Improvements
+- **Universal button processing**: Single function handles all emoji buttons
+- **Better error handling**: More informative error messages
+- **Consistent UI**: All messages use proper HTML formatting
+- **Robust navigation**: Return buttons work reliably across all states
 
 ---
 

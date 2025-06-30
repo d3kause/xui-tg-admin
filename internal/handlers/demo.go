@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"context"
+	"strings"
 
 	"github.com/sirupsen/logrus"
 	telebot "gopkg.in/telebot.v3"
@@ -74,10 +75,37 @@ func (h *DemoHandler) initializeCommands() {
 	}
 }
 
+// getButtonCommand extracts the command from button text with emoji
+func (h *DemoHandler) getButtonCommand(text string) string {
+	// Check for specific button patterns
+	switch text {
+	case "↩️ " + commands.ReturnToMainMenu:
+		return commands.ReturnToMainMenu
+	case "∞ " + commands.Infinite:
+		return commands.Infinite
+	case "✅ " + commands.Confirm:
+		return commands.Confirm
+	case "❌ " + commands.Cancel:
+		return commands.Cancel
+	}
+
+	// For other buttons, try to extract command after emoji
+	if len(text) > 2 && text[0] != '/' {
+		if spaceIndex := strings.Index(text, " "); spaceIndex > 0 {
+			return text[spaceIndex+1:]
+		}
+	}
+
+	return text
+}
+
 // handleDefaultState handles the default state
 func (h *DemoHandler) handleDefaultState(c telebot.Context) error {
-	// Check if we have a command handler for this text
-	if handler, ok := h.commandHandlers[c.Text()]; ok {
+	text := c.Text()
+	command := h.getButtonCommand(text)
+
+	// Check if we have a command handler for this command
+	if handler, ok := h.commandHandlers[command]; ok {
 		return handler(c)
 	}
 

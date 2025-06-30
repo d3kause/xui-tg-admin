@@ -3,6 +3,7 @@ package handlers
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/sirupsen/logrus"
 	telebot "gopkg.in/telebot.v3"
@@ -75,10 +76,37 @@ func (h *MemberHandler) initializeCommands() {
 	}
 }
 
+// getButtonCommand extracts the command from button text with emoji
+func (h *MemberHandler) getButtonCommand(text string) string {
+	// Check for specific button patterns
+	switch text {
+	case "↩️ " + commands.ReturnToMainMenu:
+		return commands.ReturnToMainMenu
+	case "∞ " + commands.Infinite:
+		return commands.Infinite
+	case "✅ " + commands.Confirm:
+		return commands.Confirm
+	case "❌ " + commands.Cancel:
+		return commands.Cancel
+	}
+
+	// For other buttons, try to extract command after emoji
+	if len(text) > 2 && text[0] != '/' {
+		if spaceIndex := strings.Index(text, " "); spaceIndex > 0 {
+			return text[spaceIndex+1:]
+		}
+	}
+
+	return text
+}
+
 // handleDefaultState handles the default state
 func (h *MemberHandler) handleDefaultState(c telebot.Context) error {
-	// Check if we have a command handler for this text
-	if handler, ok := h.commandHandlers[c.Text()]; ok {
+	text := c.Text()
+	command := h.getButtonCommand(text)
+
+	// Check if we have a command handler for this command
+	if handler, ok := h.commandHandlers[command]; ok {
 		return handler(c)
 	}
 
@@ -152,7 +180,7 @@ func (h *MemberHandler) handleViewConfigsInfo(c telebot.Context) error {
 	for _, inbound := range inbounds {
 		for _, clientStat := range inbound.ClientStats {
 			// This is a simplified check; in a real implementation, you would need to
-			// extract the client details from the inbound settings to check the TgID field
+			// extract the client details from the inbound settings to check the TgId field
 			if clientStat.Email == fmt.Sprintf("tg_%s", tgID) {
 				found = true
 

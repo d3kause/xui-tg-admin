@@ -116,7 +116,7 @@ func (h *AdminHandler) sendSubscriptionInfo(c telebot.Context, params ClientCrea
 
 	// Show main menu
 	markup := h.createMainKeyboard(permissions.Admin)
-	return c.Send("🎉 <b>User Created Successfully!</b>\n\nThe new user is ready to connect to the VPN.", markup)
+	return h.sendTextMessage(c, "🎉 <b>User Created Successfully!</b>\n\nThe new user is ready to connect to the VPN.", markup)
 }
 
 // calculateExpiryTime calculates expiry time based on duration
