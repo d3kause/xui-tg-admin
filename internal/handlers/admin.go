@@ -72,6 +72,8 @@ func (h *AdminHandler) Handle(ctx context.Context, c telebot.Context) error {
 		return h.processMemberAction(c)
 	case models.AwaitConfirmMemberDeletion:
 		return h.processConfirmDeletion(c)
+	case models.AwaitConfirmResetUsersNetworkUsage:
+		return h.processConfirmResetUsersNetworkUsage(c)
 	case models.AwaitExtendDuration:
 		return h.processExtendDuration(c)
 	default:
@@ -285,72 +287,16 @@ func (h *AdminHandler) handleGetUsersNetworkUsage(c telebot.Context) error {
 
 // handleResetUsersNetworkUsage handles the Reset Network Usage command
 func (h *AdminHandler) handleResetUsersNetworkUsage(c telebot.Context) error {
-	h.logger.Infof("Starting reset network usage for all users")
-
-	// Get all inbounds
-	inbounds, err := h.xrayService.GetInbounds(context.Background())
+	// Set state to awaiting confirmation for reset
+	err := h.stateService.WithConversationState(c.Sender().ID, models.AwaitConfirmResetUsersNetworkUsage)
 	if err != nil {
-		h.logger.Errorf("Failed to get inbounds: %v", err)
-		return h.sendTextMessage(c, fmt.Sprintf("Failed to get inbounds: %v", err), h.createMainKeyboard(permissions.Admin))
+		h.logger.Errorf("Failed to set state: %v", err)
+		return err
 	}
 
-	// Collect all user emails from all inbounds
-	var userEmails []struct {
-		inboundID int
-		email     string
-	}
-
-	for _, inbound := range inbounds {
-		for _, clientStat := range inbound.ClientStats {
-			userEmails = append(userEmails, struct {
-				inboundID int
-				email     string
-			}{
-				inboundID: inbound.ID,
-				email:     clientStat.Email,
-			})
-		}
-	}
-
-	if len(userEmails) == 0 {
-		return h.sendTextMessage(c, "No users found to reset traffic.", h.createMainKeyboard(permissions.Admin))
-	}
-
-	h.logger.Infof("Found %d users to reset traffic", len(userEmails))
-
-	// Reset traffic for all users
-	var resetErrors []string
-	successfullyReset := 0
-
-	for _, user := range userEmails {
-		err := h.xrayService.ResetUserTraffic(context.Background(), user.inboundID, user.email)
-		if err != nil {
-			h.logger.Errorf("Failed to reset traffic for %s in inbound %d: %v", user.email, user.inboundID, err)
-			resetErrors = append(resetErrors, fmt.Sprintf("Failed to reset %s in inbound %d: %v", user.email, user.inboundID, err))
-		} else {
-			h.logger.Infof("Successfully reset traffic for %s in inbound %d", user.email, user.inboundID)
-			successfullyReset++
-		}
-	}
-
-	// Send result message
-	var message string
-	if successfullyReset > 0 {
-		message = fmt.Sprintf("Users traffic consumption data has been successfully reset!\n\nReset traffic for %d users.", successfullyReset)
-		if len(resetErrors) > 0 {
-			message += fmt.Sprintf("\n\nSome errors occurred:\n%s", strings.Join(resetErrors, "\n"))
-		}
-	} else {
-		message = fmt.Sprintf("Failed to reset traffic for any users.\n\nErrors:\n%s", strings.Join(resetErrors, "\n"))
-	}
-
-	// Clear user state and return to main menu
-	err = h.stateService.ClearState(c.Sender().ID)
-	if err != nil {
-		h.logger.Errorf("Failed to clear user state: %v", err)
-	}
-
-	return h.sendTextMessage(c, message, h.createMainKeyboard(permissions.Admin))
+	// Show confirm keyboard
+	markup := h.createConfirmKeyboard()
+	return h.sendTextMessage(c, "Are you sure you want to reset network usage for ALL users? This action cannot be undone.", markup)
 }
 
 // processUserName processes the username input
@@ -714,4 +660,87 @@ func (h *AdminHandler) createConfirmKeyboard() *telebot.ReplyMarkup {
 	)
 
 	return markup
+}
+
+// processConfirmResetUsersNetworkUsage processes the confirmation for resetting network usage
+func (h *AdminHandler) processConfirmResetUsersNetworkUsage(c telebot.Context) error {
+	// Get confirmation from message
+	confirmation := c.Text()
+
+	// If user wants to cancel, return to main menu
+	if confirmation == commands.ReturnToMainMenu {
+		return h.handleStart(c)
+	}
+
+	// Check if user confirmed
+	if confirmation != commands.Confirm {
+		return h.sendTextMessage(c, "Invalid action. Please confirm reset or return to main menu.", nil)
+	}
+
+	h.logger.Infof("Starting reset network usage for all users")
+
+	// Get all inbounds
+	inbounds, err := h.xrayService.GetInbounds(context.Background())
+	if err != nil {
+		h.logger.Errorf("Failed to get inbounds: %v", err)
+		return h.sendTextMessage(c, fmt.Sprintf("Failed to get inbounds: %v", err), h.createMainKeyboard(permissions.Admin))
+	}
+
+	// Collect all user emails from all inbounds
+	var userEmails []struct {
+		inboundID int
+		email     string
+	}
+
+	for _, inbound := range inbounds {
+		for _, clientStat := range inbound.ClientStats {
+			userEmails = append(userEmails, struct {
+				inboundID int
+				email     string
+			}{
+				inboundID: inbound.ID,
+				email:     clientStat.Email,
+			})
+		}
+	}
+
+	if len(userEmails) == 0 {
+		return h.sendTextMessage(c, "No users found to reset traffic.", h.createMainKeyboard(permissions.Admin))
+	}
+
+	h.logger.Infof("Found %d users to reset traffic", len(userEmails))
+
+	// Reset traffic for all users
+	var resetErrors []string
+	successfullyReset := 0
+
+	for _, user := range userEmails {
+		err := h.xrayService.ResetUserTraffic(context.Background(), user.inboundID, user.email)
+		if err != nil {
+			h.logger.Errorf("Failed to reset traffic for %s in inbound %d: %v", user.email, user.inboundID, err)
+			resetErrors = append(resetErrors, fmt.Sprintf("Failed to reset %s in inbound %d: %v", user.email, user.inboundID, err))
+		} else {
+			h.logger.Infof("Successfully reset traffic for %s in inbound %d", user.email, user.inboundID)
+			successfullyReset++
+		}
+	}
+
+	// Send result message
+	var message string
+	if successfullyReset > 0 {
+		message = fmt.Sprintf("Users traffic consumption data has been successfully reset!\n\nReset traffic for %d users.", successfullyReset)
+		if len(resetErrors) > 0 {
+			message += fmt.Sprintf("\n\nSome errors occurred:\n%s", strings.Join(resetErrors, "\n"))
+		}
+	} else {
+		message = fmt.Sprintf("Failed to reset traffic for any users.\n\nErrors:\n%s", strings.Join(resetErrors, "\n"))
+	}
+
+	// Clear user state and return to main menu
+	err = h.stateService.ClearState(c.Sender().ID)
+	if err != nil {
+		h.logger.Errorf("Failed to clear user state: %v", err)
+	}
+
+	return h.sendTextMessage(c, message, h.createMainKeyboard(permissions.Admin))
 }
