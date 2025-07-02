@@ -18,10 +18,6 @@ const (
 	AwaitConfirmMemberDeletion
 	// AwaitConfirmResetUsersNetworkUsage is the state when the user is confirming network usage reset
 	AwaitConfirmResetUsersNetworkUsage
-	// AwaitSortTypeForEdit is the state when the user is selecting sort type for edit member list
-	AwaitSortTypeForEdit
-	// AwaitSortTypeForDelete is the state when the user is selecting sort type for delete member list
-	AwaitSortTypeForDelete
 )
 
 // UserState represents the state of a user's conversation

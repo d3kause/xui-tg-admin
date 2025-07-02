@@ -132,36 +132,3 @@ func calculateExpiryTime(durationStr string) (int64, error) {
 
 	return time.Now().Add(time.Duration(days) * 24 * time.Hour).UnixMilli(), nil
 }
-
-// findClientInInbounds finds a client by email in all inbounds
-func (h *AdminHandler) findClientInInbounds(ctx context.Context, email string) (*models.Inbound, *models.ClientStat, error) {
-	inbounds, err := h.xrayService.GetInbounds(ctx)
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to get inbounds: %w", err)
-	}
-
-	for _, inbound := range inbounds {
-		for _, client := range inbound.ClientStats {
-			if client.Email == email {
-				return &inbound, &client, nil
-			}
-		}
-	}
-
-	return nil, nil, fmt.Errorf("client %s not found", email)
-}
-
-// resetClientTraffic resets traffic for a specific client
-func (h *AdminHandler) resetClientTraffic(ctx context.Context, c telebot.Context, username string) error {
-	foundInbound, _, err := h.findClientInInbounds(ctx, username)
-	if err != nil {
-		return h.sendTextMessage(c, fmt.Sprintf("Client %s not found: %v", username, err), h.createReturnKeyboard())
-	}
-
-	if err := h.xrayService.ResetUserTraffic(ctx, foundInbound.ID, username); err != nil {
-		h.logger.Errorf("Failed to reset traffic: %v", err)
-		return h.sendTextMessage(c, fmt.Sprintf("Failed to reset traffic: %v", err), h.createReturnKeyboard())
-	}
-
-	return h.sendTextMessage(c, fmt.Sprintf("Traffic reset successfully for %s.", username), h.createReturnKeyboard())
-}

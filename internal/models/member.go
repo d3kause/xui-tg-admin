@@ -13,7 +13,6 @@ const (
 	SortByCreationOrder SortType = iota // По порядку создания (ID)
 	SortByExpiryDate                    // По дате истечения
 	SortByTrafficTotal                  // По общему трафику
-	SortByTrafficDown                   // По загруженному трафику
 	SortByStatus                        // По статусу (активные первые)
 	SortByName                          // По имени (алфавитный)
 )
@@ -40,8 +39,6 @@ func (st SortType) GetSortName() string {
 		return "⏰ По дате истечения"
 	case SortByTrafficTotal:
 		return "📊 По общему трафику"
-	case SortByTrafficDown:
-		return "⬇️ По скачанному трафику"
 	case SortByStatus:
 		return "🔄 По статусу"
 	case SortByName:
@@ -101,8 +98,6 @@ func SortMembers(members []MemberInfo, sortType SortType) {
 			return members[i].ExpiryTime < members[j].ExpiryTime
 		case SortByTrafficTotal:
 			return members[i].TotalTraffic > members[j].TotalTraffic // По убыванию
-		case SortByTrafficDown:
-			return members[i].TotalDown > members[j].TotalDown // По убыванию
 		case SortByStatus:
 			// Активные первые, потом неактивные
 			if members[i].Enable != members[j].Enable {

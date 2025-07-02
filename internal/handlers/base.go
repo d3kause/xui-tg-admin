@@ -157,22 +157,6 @@ func (h *BaseHandler) createReturnKeyboard() *telebot.ReplyMarkup {
 	return markup
 }
 
-// createConfirmKeyboard creates a keyboard with confirm/cancel buttons
-func (h *BaseHandler) createConfirmKeyboard() *telebot.ReplyMarkup {
-	markup := &telebot.ReplyMarkup{
-		ResizeKeyboard: true,
-	}
-
-	markup.Reply(
-		telebot.Row{
-			telebot.Btn{Text: "✅ " + commands.Confirm},
-			telebot.Btn{Text: "❌ " + commands.Cancel},
-		},
-	)
-
-	return markup
-}
-
 // HandleSelectServer handles server selection
 func (h *BaseHandler) HandleSelectServer(c telebot.Context) error {
 	// Since we have a single server configuration, just show a message

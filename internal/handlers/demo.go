@@ -133,11 +133,6 @@ func (h *DemoHandler) handleStart(c telebot.Context) error {
 	return h.sendTextMessage(c, "Welcome to X-UI Demo Bot!\n\nThis is a demo version with limited functionality. Please contact an administrator for full access.", markup)
 }
 
-// handleSelectServer handles server selection
-func (h *DemoHandler) handleSelectServer(c telebot.Context) error {
-	return h.HandleSelectServer(c)
-}
-
 // handleAbout handles the About command
 func (h *DemoHandler) handleAbout(c telebot.Context) error {
 	aboutText := `<b>X-UI Telegram Bot</b>
