@@ -183,7 +183,6 @@ func (h *AdminHandler) handleAddMember(c telebot.Context) error {
 
 // handleEditMember handles the Edit Member command
 func (h *AdminHandler) handleEditMember(c telebot.Context) error {
-
 	// Проверяем доступность сервиса
 	_, err := h.stateService.GetState(c.Sender().ID)
 	if err != nil {
@@ -191,45 +190,12 @@ func (h *AdminHandler) handleEditMember(c telebot.Context) error {
 		return err
 	}
 
-	// Get all members
-	members, err := h.xrayService.GetAllMembers(context.Background())
-	if err != nil {
-		h.logger.Errorf("Failed to get members: %v", err)
-		return h.sendTextMessage(c, "❌ <b>Connection Error</b>\n\nCouldn't retrieve user list. Please check your server connection and try again.", h.createReturnKeyboard())
-	}
-
-	if len(members) == 0 {
-		return h.sendTextMessage(c, "📭 <b>No Users Found</b>\n\nThere are no users in the system yet. Use <b>Add Member</b> to create your first user.", h.createReturnKeyboard())
-	}
-
-	// Create keyboard with member names
-	markup := &telebot.ReplyMarkup{
-		ResizeKeyboard: true,
-	}
-
-	var rows []telebot.Row
-	for _, name := range members {
-		rows = append(rows, telebot.Row{telebot.Btn{Text: helpers.ExtractBaseUsername(name)}})
-	}
-
-	// Add return button
-	rows = append(rows, telebot.Row{telebot.Btn{Text: "↩️ " + commands.ReturnToMainMenu}})
-
-	markup.Reply(rows...)
-
-	// Set state to awaiting user selection
-	err = h.stateService.WithConversationState(c.Sender().ID, models.AwaitSelectUserName)
-	if err != nil {
-		h.logger.Errorf("Failed to set state: %v", err)
-		return err
-	}
-
-	return h.sendTextMessage(c, "✏️ <b>Edit User</b>\n\n👥 Select a user to manage:", markup)
+	// Показываем список пользователей с сортировкой по дате добавления
+	return h.showMembersWithSort(c, models.SortByCreationOrder, "edit")
 }
 
 // handleDeleteMember handles the Delete Member command
 func (h *AdminHandler) handleDeleteMember(c telebot.Context) error {
-
 	// Проверяем доступность сервиса
 	_, err := h.stateService.GetState(c.Sender().ID)
 	if err != nil {
@@ -237,40 +203,8 @@ func (h *AdminHandler) handleDeleteMember(c telebot.Context) error {
 		return err
 	}
 
-	// Get all members
-	members, err := h.xrayService.GetAllMembers(context.Background())
-	if err != nil {
-		h.logger.Errorf("Failed to get members: %v", err)
-		return h.sendTextMessage(c, "❌ <b>Connection Error</b>\n\nCouldn't retrieve user list. Please check your server connection and try again.", h.createReturnKeyboard())
-	}
-
-	if len(members) == 0 {
-		return h.sendTextMessage(c, "📭 <b>No Users Found</b>\n\nThere are no users to delete.", h.createReturnKeyboard())
-	}
-
-	// Create keyboard with member names
-	markup := &telebot.ReplyMarkup{
-		ResizeKeyboard: true,
-	}
-
-	var rows []telebot.Row
-	for _, name := range members {
-		rows = append(rows, telebot.Row{telebot.Btn{Text: helpers.ExtractBaseUsername(name)}})
-	}
-
-	// Add return button
-	rows = append(rows, telebot.Row{telebot.Btn{Text: "↩️ " + commands.ReturnToMainMenu}})
-
-	markup.Reply(rows...)
-
-	// Set state to awaiting user selection for deletion
-	err = h.stateService.WithConversationState(c.Sender().ID, models.AwaitConfirmMemberDeletion)
-	if err != nil {
-		h.logger.Errorf("Failed to set state: %v", err)
-		return err
-	}
-
-	return h.sendTextMessage(c, "🗑️ <b>Delete User</b>\n\n⚠️ Select a user to permanently delete:", markup)
+	// Показываем список пользователей с сортировкой по дате добавления
+	return h.showMembersWithSort(c, models.SortByCreationOrder, "delete")
 }
 
 // handleGetOnlineMembers handles the Online Members command
@@ -826,4 +760,156 @@ func (h *AdminHandler) processConfirmResetUsersNetworkUsage(c telebot.Context) e
 	}
 
 	return h.sendTextMessage(c, message, h.createMainKeyboard(permissions.Admin))
+}
+
+// showSortTypeMenu показывает меню выбора типа сортировки
+func (h *AdminHandler) showSortTypeMenu(c telebot.Context, messageText string) error {
+	markup := &telebot.ReplyMarkup{
+		ResizeKeyboard: true,
+	}
+
+	sortTypes := []models.SortType{
+		models.SortByCreationOrder,
+		models.SortByExpiryDate,
+		models.SortByTrafficTotal,
+		models.SortByStatus,
+		models.SortByName,
+	}
+
+	var rows []telebot.Row
+	for _, sortType := range sortTypes {
+		rows = append(rows, telebot.Row{telebot.Btn{Text: sortType.GetSortName()}})
+	}
+
+	// Add return button
+	rows = append(rows, telebot.Row{telebot.Btn{Text: "↩️ " + commands.ReturnToMainMenu}})
+
+	markup.Reply(rows...)
+
+	return h.sendTextMessage(c, messageText, markup)
+}
+
+// processSortTypeSelection обрабатывает выбор типа сортировки
+func (h *AdminHandler) processSortTypeSelection(c telebot.Context, actionType string) error {
+	// Get selected sort type from message
+	selectedText := c.Text()
+
+	// Check for return to main menu
+	if h.getButtonCommand(selectedText) == commands.ReturnToMainMenu {
+		return h.handleStart(c)
+	}
+
+	// Find matching sort type
+	var selectedSortType models.SortType
+	sortTypes := []models.SortType{
+		models.SortByCreationOrder,
+		models.SortByExpiryDate,
+		models.SortByTrafficTotal,
+		models.SortByStatus,
+		models.SortByName,
+	}
+
+	found := false
+	for _, sortType := range sortTypes {
+		if sortType.GetSortName() == selectedText {
+			selectedSortType = sortType
+			found = true
+			break
+		}
+	}
+
+	if !found {
+		return h.sendTextMessage(c, "❌ <b>Invalid Selection</b>\n\nPlease select one of the sorting options from the menu.", h.createReturnKeyboard())
+	}
+
+	// Save sort type
+	err := h.stateService.WithSortType(c.Sender().ID, selectedSortType)
+	if err != nil {
+		h.logger.Errorf("Failed to set sort type: %v", err)
+		return err
+	}
+
+	// Show members list with selected sorting
+	return h.showMembersWithSort(c, selectedSortType, actionType)
+}
+
+// showMembersWithSort показывает список пользователей с указанной сортировкой
+func (h *AdminHandler) showMembersWithSort(c telebot.Context, sortType models.SortType, actionType string) error {
+	// Get all members with detailed info
+	members, err := h.xrayService.GetAllMembersWithInfo(context.Background(), sortType)
+	if err != nil {
+		h.logger.Errorf("Failed to get members with info: %v", err)
+		return h.sendTextMessage(c, "❌ <b>Connection Error</b>\n\nCouldn't retrieve user list. Please check your server connection and try again.", h.createReturnKeyboard())
+	}
+
+	if len(members) == 0 {
+		message := "📭 <b>No Users Found</b>\n\nThere are no users in the system yet."
+		if actionType == "edit" {
+			message += " Use <b>Add Member</b> to create your first user."
+		}
+		return h.sendTextMessage(c, message, h.createReturnKeyboard())
+	}
+
+	// Create keyboard with member names and additional info
+	markup := &telebot.ReplyMarkup{
+		ResizeKeyboard: true,
+	}
+
+	var rows []telebot.Row
+	for _, member := range members {
+		// Format button text with additional info based on sort type
+		buttonText := h.formatMemberButtonText(member, sortType)
+		rows = append(rows, telebot.Row{telebot.Btn{Text: buttonText}})
+	}
+
+	// Add return button
+	rows = append(rows, telebot.Row{telebot.Btn{Text: "↩️ " + commands.ReturnToMainMenu}})
+
+	markup.Reply(rows...)
+
+	// Set appropriate state
+	var nextState models.ConversationState
+	var messageText string
+
+	if actionType == "edit" {
+		nextState = models.AwaitSelectUserName
+		messageText = "✏️ <b>Edit User</b>\n\n👥 Select a user to manage:"
+	} else if actionType == "delete" {
+		nextState = models.AwaitConfirmMemberDeletion
+		messageText = "🗑️ <b>Delete User</b>\n\n⚠️ Select a user to permanently delete:"
+	}
+
+	err = h.stateService.WithConversationState(c.Sender().ID, nextState)
+	if err != nil {
+		h.logger.Errorf("Failed to set state: %v", err)
+		return err
+	}
+
+	return h.sendTextMessage(c, messageText, markup)
+}
+
+// formatMemberButtonText форматирует текст кнопки пользователя с дополнительной информацией
+func (h *AdminHandler) formatMemberButtonText(member models.MemberInfo, sortType models.SortType) string {
+	baseText := member.BaseUsername
+
+	switch sortType {
+	case models.SortByCreationOrder:
+		return baseText // По дате добавления показываем только имя
+	case models.SortByExpiryDate:
+		return fmt.Sprintf("%s (%s)", baseText, member.GetExpiryStatus())
+	case models.SortByTrafficTotal:
+		if member.TotalTraffic > 0 {
+			totalGB := float64(member.TotalTraffic) / (1024 * 1024 * 1024)
+			return fmt.Sprintf("%s (%.1f GB)", baseText, totalGB)
+		}
+		return fmt.Sprintf("%s (0 GB)", baseText)
+	case models.SortByStatus:
+		status := "❌"
+		if member.Enable {
+			status = "✅"
+		}
+		return fmt.Sprintf("%s %s", status, baseText)
+	default:
+		return baseText
+	}
 }
