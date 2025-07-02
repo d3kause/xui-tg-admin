@@ -23,6 +23,8 @@ import (
 type AdminHandler struct {
 	BaseHandler
 	commandHandlers map[string]func(telebot.Context) error
+	trustedHandler  *AdminTrustedHandler
+	storageService  *services.StorageService
 }
 
 // NewAdminHandler creates a new admin handler
@@ -30,12 +32,19 @@ func NewAdminHandler(
 	xrayService *services.XrayService,
 	stateService *services.UserStateService,
 	qrService *services.QRService,
+	storageService *services.StorageService,
 	config *config.Config,
 	logger *logrus.Logger,
 ) *AdminHandler {
+	baseHandler := NewBaseHandler(xrayService, stateService, qrService, config, logger)
+
 	handler := &AdminHandler{
-		BaseHandler: NewBaseHandler(xrayService, stateService, qrService, config, logger),
+		BaseHandler:    baseHandler,
+		storageService: storageService,
 	}
+
+	// Initialize trusted handler
+	handler.trustedHandler = NewAdminTrustedHandler(&baseHandler, storageService)
 
 	handler.initializeCommands()
 	return handler
@@ -48,6 +57,11 @@ func (h *AdminHandler) CanHandle(accessType permissions.AccessType) bool {
 
 // Handle handles a message from Telegram
 func (h *AdminHandler) Handle(ctx context.Context, c telebot.Context) error {
+	// Handle callback queries
+	if c.Callback() != nil {
+		return h.handleCallback(ctx, c)
+	}
+
 	// Get user ID
 	userID := c.Sender().ID
 
@@ -74,6 +88,8 @@ func (h *AdminHandler) Handle(ctx context.Context, c telebot.Context) error {
 		return h.processConfirmDeletion(c)
 	case models.AwaitConfirmResetUsersNetworkUsage:
 		return h.processConfirmResetUsersNetworkUsage(c)
+	case models.StateAwaitingTrustedUsername:
+		return h.processTrustedUsernameInput(c)
 	default:
 		h.logger.Warnf("Unknown state: %d", userState.State)
 		return h.handleDefaultState(c)
@@ -91,6 +107,8 @@ func (h *AdminHandler) initializeCommands() {
 		commands.NetworkUsage:      h.handleGetUsersNetworkUsage,
 		commands.DetailedUsage:     h.handleGetDetailedUsersInfo,
 		commands.ResetNetworkUsage: h.handleResetUsersNetworkUsage,
+		commands.AddTrusted:        h.handleAddTrusted,
+		commands.RevokeTrusted:     h.handleRevokeTrusted,
 		commands.ReturnToMainMenu:  h.handleStart,
 		commands.Cancel:            h.handleStart,
 	}
@@ -508,7 +526,7 @@ func (h *AdminHandler) handleViewConfig(c telebot.Context, username string) erro
 	}
 
 	// Get subscription URL using SubID (same format as when adding user)
-	subURL := fmt.Sprintf("https://iris.xele.one:2096/sub/%s?name=%s", foundClientSubID, foundClientSubID)
+	subURL := fmt.Sprintf("%s%s?name=%s", h.config.Server.SubURLPrefix, foundClientSubID, foundClientSubID)
 
 	// Send subscription URL with user action keyboard (stays in same state)
 	err = h.sendTextMessage(c, fmt.Sprintf("🔗 <b>Configuration for %s</b>\n\n📋 <b>Subscription URL:</b>\n<code>%s</code>\n\n<i>Copy this link to your VPN client or scan the QR code below</i>", username, subURL), h.createUserActionKeyboard())
@@ -849,4 +867,39 @@ func (h *AdminHandler) formatMemberButtonText(member models.MemberInfo, sortType
 	default:
 		return baseText
 	}
+}
+
+// handleAddTrusted handles the add trusted user command
+func (h *AdminHandler) handleAddTrusted(c telebot.Context) error {
+	ctx := context.Background()
+	return h.trustedHandler.HandleAddTrustedRequest(ctx, c)
+}
+
+// handleRevokeTrusted handles the revoke trusted user command
+func (h *AdminHandler) handleRevokeTrusted(c telebot.Context) error {
+	ctx := context.Background()
+	return h.trustedHandler.HandleRevokeTrustedRequest(ctx, c)
+}
+
+// processTrustedUsernameInput processes trusted username input
+func (h *AdminHandler) processTrustedUsernameInput(c telebot.Context) error {
+	text := c.Text()
+	ctx := context.Background()
+	return h.trustedHandler.HandleTrustedUsernameInput(ctx, c, text)
+}
+
+// handleCallback handles callback queries for admin
+func (h *AdminHandler) handleCallback(ctx context.Context, c telebot.Context) error {
+	data := c.Callback().Data
+
+	// Handle revoke trusted user callbacks
+	if strings.HasPrefix(data, "revoke_trusted_") {
+		telegramID, err := ParseRevokeTrustedCallback(data)
+		if err != nil {
+			return c.Send("Invalid selection.")
+		}
+		return h.trustedHandler.HandleRevokeTrusted(ctx, c, telegramID)
+	}
+
+	return c.Send("Unknown action.")
 }

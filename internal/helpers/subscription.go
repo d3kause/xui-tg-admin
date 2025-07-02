@@ -10,7 +10,7 @@ import (
 )
 
 // FormatSubscriptionInfo formats subscription information for a single user
-func FormatSubscriptionInfo(baseUsername string, durationStr string, expiryTime int64, createdEmails []string, commonSubId string, addErrors []string) string {
+func FormatSubscriptionInfo(baseUsername string, durationStr string, expiryTime int64, createdEmails []string, commonSubId string, addErrors []string, subURLPrefix string) string {
 	var sb strings.Builder
 	sb.WriteString(fmt.Sprintf("Client added successfully!\n\nBase username: %s\n", baseUsername))
 
@@ -29,7 +29,7 @@ func FormatSubscriptionInfo(baseUsername string, durationStr string, expiryTime 
 	}
 
 	if len(createdEmails) > 0 {
-		subURL := fmt.Sprintf("https://iris.xele.one:2096/sub/%s?name=%s", commonSubId, commonSubId)
+		subURL := fmt.Sprintf("%s%s?name=%s", subURLPrefix, commonSubId, commonSubId)
 		sb.WriteString(fmt.Sprintf("\n\nLink to connect: %s", subURL))
 	}
 

@@ -17,6 +17,8 @@ const (
 	NetworkUsage      = "Network Usage"
 	DetailedUsage     = "Detailed Usage"
 	ResetNetworkUsage = "Reset Network Usage"
+	AddTrusted        = "Add Trusted"
+	RevokeTrusted     = "Revoke Trusted"
 
 	// Member commands
 	CreateNewConfig = "Create New Config"

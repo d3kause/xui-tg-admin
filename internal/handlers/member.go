@@ -39,7 +39,7 @@ func NewMemberHandler(
 
 // CanHandle checks if the handler can handle the given access type
 func (h *MemberHandler) CanHandle(accessType permissions.AccessType) bool {
-	return accessType == permissions.Member
+	return false // Member permission no longer exists
 }
 
 // Handle handles a message from Telegram
@@ -129,9 +129,8 @@ func (h *MemberHandler) handleStart(c telebot.Context) error {
 		return err
 	}
 
-	// Show main menu
-	markup := h.createMainKeyboard(permissions.Member)
-	return h.sendTextMessage(c, "Welcome to X-UI Member Bot!", markup)
+	// Member permission no longer exists
+	return c.Send("You don't have permission to use this bot.")
 }
 
 // handleSelectServer handles server selection

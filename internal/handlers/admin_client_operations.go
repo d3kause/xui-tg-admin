@@ -94,6 +94,7 @@ func (h *AdminHandler) sendSubscriptionInfo(c telebot.Context, params ClientCrea
 		createdEmails,
 		params.CommonSubId,
 		addErrors,
+		h.config.Server.SubURLPrefix,
 	)
 
 	if err := h.sendTextMessage(c, subscriptionInfo, nil); err != nil {
@@ -101,7 +102,7 @@ func (h *AdminHandler) sendSubscriptionInfo(c telebot.Context, params ClientCrea
 	}
 
 	if len(createdEmails) > 0 {
-		subURL := fmt.Sprintf("https://iris.xele.one:2096/sub/%s?name=%s", params.CommonSubId, params.CommonSubId)
+		subURL := fmt.Sprintf("%s%s?name=%s", h.config.Server.SubURLPrefix, params.CommonSubId, params.CommonSubId)
 		if err := h.sendTextMessage(c, "QR code for subscription:", nil); err != nil {
 			h.logger.Errorf("Failed to send QR code message: %v", err)
 		} else if err := h.sendQRCode(c, subURL); err != nil {

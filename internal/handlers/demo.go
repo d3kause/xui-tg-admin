@@ -38,7 +38,7 @@ func NewDemoHandler(
 
 // CanHandle checks if the handler can handle the given access type
 func (h *DemoHandler) CanHandle(accessType permissions.AccessType) bool {
-	return accessType == permissions.Demo
+	return false // Demo permission no longer exists
 }
 
 // Handle handles a message from Telegram
@@ -128,9 +128,8 @@ func (h *DemoHandler) handleStart(c telebot.Context) error {
 		return err
 	}
 
-	// Show main menu
-	markup := h.createMainKeyboard(permissions.Demo)
-	return h.sendTextMessage(c, "Welcome to X-UI Demo Bot!\n\nThis is a demo version with limited functionality. Please contact an administrator for full access.", markup)
+	// Demo permission no longer exists
+	return c.Send("You don't have permission to use this bot.")
 }
 
 // handleAbout handles the About command
