@@ -108,9 +108,18 @@ func FormatCompactTrafficReport(inbounds []models.Inbound, onlineUsers []string)
 		users = append(users, summary)
 	}
 
-	// Sort users by total traffic (descending)
+	// Sort users by total traffic (descending), then by name (ascending) for ties
 	sort.Slice(users, func(i, j int) bool {
-		return (users[i].TotalUp + users[i].TotalDown) > (users[j].TotalUp + users[j].TotalDown)
+		totalI := users[i].TotalUp + users[i].TotalDown
+		totalJ := users[j].TotalUp + users[j].TotalDown
+
+		if totalI == totalJ {
+			// If traffic is equal, sort by username alphabetically
+			return users[i].BaseUsername < users[j].BaseUsername
+		}
+
+		// Sort by total traffic (descending)
+		return totalI > totalJ
 	})
 
 	// Calculate totals
