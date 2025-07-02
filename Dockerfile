@@ -5,8 +5,7 @@ RUN go mod download
 COPY . .
 RUN CGO_ENABLED=0 GOOS=linux go build -o bot ./cmd/bot
 
-FROM alpine:latest
-RUN apk --no-cache add ca-certificates
-WORKDIR /root/
-COPY --from=builder /app/bot .
-CMD ["./bot"]
+FROM gcr.io/distroless/static:nonroot
+COPY --from=builder /app/bot /
+USER nonroot:nonroot
+ENTRYPOINT ["/bot"]
