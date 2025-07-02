@@ -174,3 +174,175 @@ func addUniqueString(slice *[]string, item string) {
 	}
 	*slice = append(*slice, item)
 }
+
+// FormatCompactTrafficReport formats a compact and beautiful traffic report for X-Ray users
+func FormatCompactTrafficReport(inbounds []models.Inbound, onlineUsers []string) string {
+	if len(inbounds) == 0 {
+		return "📭 <b>No Users Found</b>\n\nThere are no users in the system yet."
+	}
+
+	// Create a set of online users for quick lookup
+	onlineSet := make(map[string]bool)
+	for _, user := range onlineUsers {
+		// Extract base username from online user email
+		baseUser := ExtractBaseUsername(user)
+		onlineSet[baseUser] = true
+	}
+
+	// Aggregate user data by base username
+	userSummary := make(map[string]*UserTrafficSummary)
+
+	for _, inbound := range inbounds {
+		for _, clientStat := range inbound.ClientStats {
+			baseUsername := ExtractBaseUsername(clientStat.Email)
+
+			if userSummary[baseUsername] == nil {
+				userSummary[baseUsername] = &UserTrafficSummary{
+					BaseUsername: baseUsername,
+					TotalUp:      0,
+					TotalDown:    0,
+					Enable:       clientStat.Enable,
+					ExpiryTime:   clientStat.ExpiryTime,
+					InboundStats: make(map[string]*InboundTrafficStats),
+				}
+			}
+
+			summary := userSummary[baseUsername]
+			summary.TotalUp += clientStat.Up
+			summary.TotalDown += clientStat.Down
+
+			// Keep enabled status if any client is enabled
+			if clientStat.Enable {
+				summary.Enable = true
+			}
+
+			// Use the latest expiry time
+			if clientStat.ExpiryTime > summary.ExpiryTime {
+				summary.ExpiryTime = clientStat.ExpiryTime
+			}
+
+			// Track stats per inbound
+			if summary.InboundStats[inbound.Remark] == nil {
+				summary.InboundStats[inbound.Remark] = &InboundTrafficStats{
+					Down: 0,
+					Up:   0,
+				}
+			}
+			summary.InboundStats[inbound.Remark].Down += clientStat.Down
+			summary.InboundStats[inbound.Remark].Up += clientStat.Up
+		}
+	}
+
+	if len(userSummary) == 0 {
+		return "📭 <b>No Active Users</b>\n\nNo user traffic data available."
+	}
+
+	var sb strings.Builder
+	sb.WriteString("<b>📊 Traffic Usage Report</b>\n\n")
+
+	// Calculate totals
+	var grandTotalUp, grandTotalDown int64
+	activeCount := 0
+
+	// Format each user
+	for _, summary := range userSummary {
+		grandTotalUp += summary.TotalUp
+		grandTotalDown += summary.TotalDown
+
+		if summary.Enable {
+			activeCount++
+		}
+
+		// Determine online status
+		statusIcon := "🔴"
+		if onlineSet[summary.BaseUsername] {
+			statusIcon = "🟢"
+		}
+
+		// Convert traffic to GB with 2 decimal places
+		downGB := float64(summary.TotalDown) / constants.BytesInGB
+		upGB := float64(summary.TotalUp) / constants.BytesInGB
+
+		// Extract clean username (remove everything after @ or _)
+		displayName := extractCleanUsername(summary.BaseUsername)
+
+		// Format user line
+		userLine := fmt.Sprintf("%s <b>%s</b> — ⬇ %.2f GB ⬆ %.2f GB", statusIcon, displayName, downGB, upGB)
+
+		// Add expiry and limit info in parentheses if needed
+		var infoItems []string
+
+		// Add expiry date if set
+		if summary.ExpiryTime > 0 {
+			expiryDate := time.Unix(summary.ExpiryTime/1000, 0)
+			infoItems = append(infoItems, fmt.Sprintf("until %s", expiryDate.Format("02.01.06")))
+		}
+
+		// Note: TrafficLimitGb is always 0 (unlimited) in this system, so we don't show it
+		// If it was available, we would add: infoItems = append(infoItems, fmt.Sprintf("limit %d GB", limitGB))
+
+		if len(infoItems) > 0 {
+			userLine += fmt.Sprintf(" (%s)", strings.Join(infoItems, ", "))
+		}
+
+		sb.WriteString(userLine + "\n")
+	}
+
+	// Add summary section
+	sb.WriteString("\n<b>📈 Summary</b>\n")
+	grandTotalDownGB := float64(grandTotalDown) / constants.BytesInGB
+	grandTotalUpGB := float64(grandTotalUp) / constants.BytesInGB
+
+	sb.WriteString(fmt.Sprintf("Total ⬇ %.2f GB ⬆ %.2f GB\n", grandTotalDownGB, grandTotalUpGB))
+
+	// Add per-inbound breakdown
+	inboundTotals := make(map[string]*InboundTrafficStats)
+	for _, summary := range userSummary {
+		for inboundName, stats := range summary.InboundStats {
+			if inboundTotals[inboundName] == nil {
+				inboundTotals[inboundName] = &InboundTrafficStats{Down: 0, Up: 0}
+			}
+			inboundTotals[inboundName].Down += stats.Down
+			inboundTotals[inboundName].Up += stats.Up
+		}
+	}
+
+	for inboundName, stats := range inboundTotals {
+		downGB := float64(stats.Down) / constants.BytesInGB
+		upGB := float64(stats.Up) / constants.BytesInGB
+		sb.WriteString(fmt.Sprintf("Inbound %s: ⬇ %.2f GB ⬆ %.2f GB\n", inboundName, downGB, upGB))
+	}
+
+	return sb.String()
+}
+
+// UserTrafficSummary represents aggregated traffic data for a user
+type UserTrafficSummary struct {
+	BaseUsername string
+	TotalUp      int64
+	TotalDown    int64
+	Enable       bool
+	ExpiryTime   int64
+	InboundStats map[string]*InboundTrafficStats
+}
+
+// InboundTrafficStats represents traffic stats for a specific inbound
+type InboundTrafficStats struct {
+	Down int64
+	Up   int64
+}
+
+// extractCleanUsername removes everything after @ or _ to get clean display name
+func extractCleanUsername(username string) string {
+	// Find @ symbol
+	if atIndex := strings.Index(username, "@"); atIndex != -1 {
+		return username[:atIndex]
+	}
+
+	// Find _ symbol
+	if underIndex := strings.Index(username, "_"); underIndex != -1 {
+		return username[:underIndex]
+	}
+
+	return username
+}

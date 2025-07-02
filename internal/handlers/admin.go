@@ -647,8 +647,16 @@ func (h *AdminHandler) handleGetDetailedUsersInfo(c telebot.Context) error {
 		return h.sendTextMessage(c, "❌ <b>Connection Error</b>\n\nCouldn't retrieve detailed usage data. Please check your server connection and try again.", h.createMainKeyboard(permissions.Admin))
 	}
 
-	// Format detailed user information report
-	message := helpers.FormatDetailedUsersReport(inbounds)
+	// Get online users for status indication
+	onlineUsers, err := h.xrayService.GetOnlineUsers(context.Background())
+	if err != nil {
+		h.logger.Errorf("Failed to get online users: %v", err)
+		// Continue with empty online users list if this fails
+		onlineUsers = []string{}
+	}
+
+	// Format compact traffic report
+	message := helpers.FormatCompactTrafficReport(inbounds, onlineUsers)
 
 	return h.sendTextMessage(c, message, h.createMainKeyboard(permissions.Admin))
 }
