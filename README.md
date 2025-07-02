@@ -7,7 +7,7 @@
 ![Telegram](https://img.shields.io/badge/Telegram-Bot-blue.svg)
 ![X-Ray](https://img.shields.io/badge/X--Ray-Panel-orange.svg)
 
-**Powerful Telegram bot for managing X-UI panel with role-based access and advanced features**
+**Modern Telegram bot for managing X-UI panel with role-based access and advanced features**
 
 [🚀 Quick Start](#quick-start) • [📋 Features](#features) • [⚙️ Installation](#installation) • [🔧 Configuration](#configuration) • [📖 Usage](#usage)
 
@@ -28,6 +28,7 @@
 - **📊 Monitoring**: Real-time traffic statistics and connection status
 - **🔒 Security**: Access control verification and data validation
 - **🎯 Smart navigation**: Universal button command handling with emoji support
+- **🏗️ Modern architecture**: Clean modular structure with dependency injection
 
 ---
 
@@ -88,10 +89,10 @@ go build -o xui-tg-admin ./cmd/bot
 # 2. Set environment variables
 export TG_TOKEN=your_telegram_bot_token
 export TG_ADMIN_IDS=123456789,987654321
-export XRAY_SERVER=my-server
 export XRAY_USER=admin
 export XRAY_PASSWORD=password123
 export XRAY_API_URL=http://localhost:8080/api
+export XRAY_SUB_URL_PREFIX=http://localhost:8080/sub
 
 # 3. Run
 ./xui-tg-admin
@@ -109,7 +110,6 @@ TG_TOKEN=1234567890:ABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890
 TG_ADMIN_IDS=123456789,987654321
 
 # X-ray Server Configuration
-XRAY_SERVER=my-server
 XRAY_USER=admin
 XRAY_PASSWORD=secure_password_123
 XRAY_API_URL=http://your-server.com:54321/api
@@ -125,7 +125,6 @@ LOG_LEVEL=info
 |----------|-------------|----------|---------|
 | `TG_TOKEN` | Telegram Bot Token | ✅ | `1234567890:ABCdef...` |
 | `TG_ADMIN_IDS` | Admin IDs (comma-separated) | ✅ | `123456789,987654321` |
-| `XRAY_SERVER` | X-UI server identifier | ✅ | `my-server` |
 | `XRAY_USER` | X-UI panel login | ✅ | `admin` |
 | `XRAY_PASSWORD` | X-UI panel password | ✅ | `password123` |
 | `XRAY_API_URL` | X-UI panel API URL | ✅ | `http://server.com:54321/api` |
@@ -206,12 +205,17 @@ The bot features universal button handling:
 ```
 xui-tg-admin/
 ├── 📂 cmd/bot/           # Application entry point
+│   └── main.go           # Main application file
 ├── 📂 internal/          # Internal logic
 │   ├── 📂 commands/      # Command constants
-│   ├── 📂 config/        # Configuration
+│   ├── 📂 config/        # Configuration and loading
 │   ├── 📂 constants/     # Application constants
-│   ├── 📂 errors/        # Error handling
 │   ├── 📂 handlers/      # Telegram handlers
+│   │   ├── admin.go      # Admin handler
+│   │   ├── base.go       # Base handler
+│   │   ├── demo.go       # Demo handler
+│   │   ├── factory.go    # Handler factory
+│   │   └── member.go     # Member handler
 │   ├── 📂 helpers/       # Helper functions
 │   ├── 📂 models/        # Data models
 │   ├── 📂 permissions/   # Access control system
@@ -230,6 +234,17 @@ xui-tg-admin/
 - **`xrayclient/`** - HTTP client for X-UI API with session management
 - **`permissions/`** - Role and access control system
 - **`commands/`** - Centralized command constants
+- **`models/`** - Data structures for clients, inbounds, and states
+- **`config/`** - Configuration loading and validation
+
+### 🎯 Key Architecture Features
+
+- **Modular structure**: Clear separation of concerns between components
+- **Role-based system**: Different handlers for different user types
+- **State management**: User state tracking in conversations
+- **Session caching**: Optimized X-UI API requests
+- **Universal button handling**: Single system for all emoji buttons
+- **Dependency injection**: Clean testable architecture
 
 ---
 
@@ -265,6 +280,15 @@ LOG_LEVEL=warn   # Warnings only
 LOG_LEVEL=error  # Errors only
 ```
 
+### 🐛 Debugging
+
+Key logging points:
+- X-UI API authentication
+- Client creation/deletion
+- API request errors
+- User states
+- Command and button handling
+
 ---
 
 ## 🆕 Recent Updates
@@ -280,6 +304,37 @@ LOG_LEVEL=error  # Errors only
 - **Better error handling**: More informative error messages
 - **Consistent UI**: All messages use proper HTML formatting
 - **Robust navigation**: Return buttons work reliably across all states
+- **Optimized architecture**: Clear separation of responsibilities between components
+
+---
+
+## 🔧 Docker
+
+### 📦 Docker Compose
+
+```yaml
+services:
+  x-ui-tg-go:
+    build: .
+    container_name: x-ui-tg-go
+    restart: unless-stopped
+    environment:
+      - TG_TOKEN=${TG_TOKEN}
+      - TG_ADMIN_IDS=${TG_ADMIN_IDS}
+      - XRAY_USER=${XRAY_USER}
+      - XRAY_PASSWORD=${XRAY_PASSWORD}
+      - XRAY_API_URL=${XRAY_API_URL}
+      - XRAY_SUB_URL_PREFIX=${XRAY_SUB_URL_PREFIX}
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+    volumes:
+      - ./data:/root/data
+```
+
+### 🔧 Dockerfile
+
+Multi-stage build for optimal image size:
+- Build stage: Go 1.24 Alpine
+- Production image: Alpine Linux with SSL certificates
 
 ---
 
@@ -314,6 +369,7 @@ This project is licensed under the MIT License. See the [LICENSE](LICENSE) file 
 - [X-UI](https://github.com/vaxilu/x-ui) - Excellent X-Ray management panel
 - [Telegram Bot API](https://core.telegram.org/bots/api) - Telegram Bot API
 - [Go](https://golang.org/) - Go programming language
+- [Telebot](https://gopkg.in/telebot.v3) - Telegram Bot framework for Go
 
 ---
 
