@@ -103,12 +103,12 @@ func FindCommonPartWithoutSuffix(names []string) string {
 		return ""
 	}
 	if len(names) == 1 {
-		return RemoveNumericSuffix(names[0])
+		return ExtractBaseUsername(names[0])
 	}
 
 	var cleanedNames []string
 	for _, name := range names {
-		cleanedNames = append(cleanedNames, RemoveNumericSuffix(name))
+		cleanedNames = append(cleanedNames, ExtractBaseUsername(name))
 	}
 
 	commonPrefix := cleanedNames[0]
@@ -121,20 +121,6 @@ func FindCommonPartWithoutSuffix(names []string) string {
 	}
 
 	return commonPrefix
-}
-
-// RemoveNumericSuffix removes numeric suffixes like -2, -3, etc.
-func RemoveNumericSuffix(name string) string {
-	for i := len(name) - 1; i >= 0; i-- {
-		if name[i] == '-' {
-			suffix := name[i+1:]
-			if IsNumeric(suffix) {
-				return name[:i]
-			}
-			break
-		}
-	}
-	return name
 }
 
 // IsNumeric checks if a string contains only digits

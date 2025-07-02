@@ -5,6 +5,9 @@ const (
 	MinUsernameLength = 3
 	MaxUsernameLength = 32
 
+	// User naming constants
+	UsernameSeparator = "-"
+
 	// Traffic constants
 	BytesInGB = 1024 * 1024 * 1024
 

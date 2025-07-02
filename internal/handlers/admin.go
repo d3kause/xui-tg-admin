@@ -181,14 +181,6 @@ func (h *AdminHandler) handleAddMember(c telebot.Context) error {
 	return h.sendTextMessage(c, "👤 <b>Add New User</b>\n\n📝 Please enter a username for the new user:\n\n<i>• Use only letters, numbers, and underscores\n• 3-20 characters long\n• Example: john_doe, user123</i>", markup)
 }
 
-// baseUsername возвращает имя пользователя без постфикса
-func baseUsername(email string) string {
-	if idx := strings.Index(email, "-"); idx > 0 {
-		return email[:idx]
-	}
-	return email
-}
-
 // handleEditMember handles the Edit Member command
 func (h *AdminHandler) handleEditMember(c telebot.Context) error {
 
@@ -217,7 +209,7 @@ func (h *AdminHandler) handleEditMember(c telebot.Context) error {
 
 	var rows []telebot.Row
 	for _, name := range members {
-		rows = append(rows, telebot.Row{telebot.Btn{Text: baseUsername(name)}})
+		rows = append(rows, telebot.Row{telebot.Btn{Text: helpers.ExtractBaseUsername(name)}})
 	}
 
 	// Add return button
@@ -263,7 +255,7 @@ func (h *AdminHandler) handleDeleteMember(c telebot.Context) error {
 
 	var rows []telebot.Row
 	for _, name := range members {
-		rows = append(rows, telebot.Row{telebot.Btn{Text: baseUsername(name)}})
+		rows = append(rows, telebot.Row{telebot.Btn{Text: helpers.ExtractBaseUsername(name)}})
 	}
 
 	// Add return button
@@ -565,8 +557,8 @@ func (h *AdminHandler) handleViewConfig(c telebot.Context, username string) erro
 
 		// Find client in settings
 		for _, client := range settings.Clients {
-			// Check if client email starts with the base username
-			if strings.HasPrefix(client.Email, username) && (len(client.Email) == len(username) || client.Email[len(username)] == '-') {
+			// Check if client email matches the base username using helper function
+			if helpers.IsEmailMatchingBaseUsername(client.Email, username) {
 				h.logger.Infof("Found matching client: %s in inbound %d", client.Email, inbound.ID)
 				foundClientSubID = client.SubID
 				break
@@ -614,8 +606,8 @@ func (h *AdminHandler) handleResetTraffic(c telebot.Context, username string) er
 
 	for _, inbound := range inbounds {
 		for _, clientStat := range inbound.ClientStats {
-			// Check if client email starts with the base username
-			if strings.HasPrefix(clientStat.Email, username) && (len(clientStat.Email) == len(username) || clientStat.Email[len(username)] == '-') {
+			// Check if client email matches the base username using helper function
+			if helpers.IsEmailMatchingBaseUsername(clientStat.Email, username) {
 				h.logger.Infof("Found matching client: %s in inbound %d", clientStat.Email, inbound.ID)
 
 				err := h.xrayService.ResetUserTraffic(context.Background(), inbound.ID, clientStat.Email)

@@ -16,6 +16,7 @@ import (
 
 	"xui-tg-admin/internal/config"
 	"xui-tg-admin/internal/constants"
+	"xui-tg-admin/internal/helpers"
 	"xui-tg-admin/internal/models"
 )
 
@@ -258,8 +259,8 @@ func (c *Client) RemoveClients(ctx context.Context, emails []string) error {
 
 			// Find client by email
 			for _, client := range settings.Clients {
-				// Ищем по базовому имени (без постфикса)
-				if strings.HasPrefix(client.Email, email) && (len(client.Email) == len(email) || client.Email[len(email)] == '-') {
+				// Ищем по базовому имени используя helper функцию
+				if helpers.IsEmailMatchingBaseUsername(client.Email, email) {
 					c.logger.Infof("Found matching client: %s in inbound %d", client.Email, inbound.ID)
 
 					// Extract client UUID from client object

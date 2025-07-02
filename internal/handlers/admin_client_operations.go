@@ -31,7 +31,7 @@ func (h *AdminHandler) createClientsForAllInbounds(ctx context.Context, params C
 	var addedToAny bool
 
 	for i, inbound := range enabledInbounds {
-		email := fmt.Sprintf("%s-%d", params.BaseUsername, i+1)
+		email := helpers.FormatEmailWithInboundNumber(params.BaseUsername, i+1)
 		fingerprint := fmt.Sprintf("%s-%d", params.BaseFingerprint, i+1)
 
 		client := models.Client{
