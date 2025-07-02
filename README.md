@@ -58,30 +58,59 @@
 ## 🚀 Quick Start
 
 ### Requirements
-- **Go 1.24+** or **Docker**
+- **Docker** and **Docker Compose**
 - **X-UI panel** with API access
 - **Telegram Bot Token**
 
-### ⚡ Quick installation with Docker
+### ⚡ Super Quick Start (Using Pre-built Image)
+
+**No git clone needed! Just 3 commands:**
 
 ```bash
-# 1. Clone repository
-git clone https://github.com/yourusername/xui-tg-admin.git
-cd xui-tg-admin
+# 1. Create project directory
+mkdir xui-tg-admin && cd xui-tg-admin
 
-# 2. Configure settings
-cp config.example.env .env
-nano .env
+# 2. Download docker-compose.yml
+curl -o docker-compose.yml https://raw.githubusercontent.com/d3kause/xui-tg-admin/main/docker-compose.yml
 
-# 3. Start
+# 3. Edit configuration and start
+nano docker-compose.yml  # Edit your settings
 docker-compose up -d
 ```
 
-### 🔧 Manual installation
+### 🔧 Manual Docker Compose Setup
+
+Create `docker-compose.yml`:
+
+```yaml
+services:
+  x-ui-tg-go:
+    image: ghcr.io/d3kause/xui-tg-admin:latest
+    container_name: x-ui-tg-go
+    restart: unless-stopped
+    environment:
+      # Replace with your actual values
+      - TG_TOKEN=1234567890:YOUR_BOT_TOKEN_FROM_BOTFATHER
+      - TG_ADMIN_IDS=123456789,987654321
+      - XRAY_USER=admin
+      - XRAY_PASSWORD=your_xui_panel_password
+      - XRAY_API_URL=http://localhost:54321/api
+      - XRAY_SUB_URL_PREFIX=http://YOUR_SERVER_IP:54321/sub
+      - LOG_LEVEL=info
+    volumes:
+      - ./data:/root/data
+```
+
+Then run:
+```bash
+docker-compose up -d
+```
+
+### 🛠️ Development Setup (From Source)
 
 ```bash
 # 1. Clone and build
-git clone https://github.com/yourusername/xui-tg-admin.git
+git clone https://github.com/d3kause/xui-tg-admin.git
 cd xui-tg-admin
 go mod download
 go build -o xui-tg-admin ./cmd/bot
@@ -102,34 +131,34 @@ export XRAY_SUB_URL_PREFIX=http://localhost:8080/sub
 
 ## ⚙️ Configuration
 
-### 📝 Configuration example
+### 🔑 Required Configuration
 
-```env
-# Telegram Bot Configuration
-TG_TOKEN=1234567890:ABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890
-TG_ADMIN_IDS=123456789,987654321
+Replace these values in your `docker-compose.yml`:
 
-# X-ray Server Configuration
-XRAY_USER=admin
-XRAY_PASSWORD=secure_password_123
-XRAY_API_URL=http://your-server.com:54321/api
-XRAY_SUB_URL_PREFIX=http://your-server.com:54321/sub
+| Parameter | Description | Example |
+|-----------|-------------|---------|
+| `TG_TOKEN` | Get from @BotFather | `1234567890:ABCdef_your_token` |
+| `TG_ADMIN_IDS` | Your Telegram ID(s) | `123456789,987654321` |
+| `XRAY_USER` | X-UI panel username | `admin` |
+| `XRAY_PASSWORD` | X-UI panel password | `your_secure_password` |
+| `XRAY_API_URL` | X-UI panel API URL | `http://localhost:54321/api` |
+| `XRAY_SUB_URL_PREFIX` | Subscription URL prefix | `http://YOUR_SERVER_IP:54321/sub` |
 
-# Logging Configuration
-LOG_LEVEL=info
-```
+### 📝 How to get required values
 
-### 🔑 Environment variables
+1. **Telegram Bot Token**:
+   - Message @BotFather in Telegram
+   - Send `/newbot` and follow instructions
+   - Copy the token
 
-| Variable | Description | Required | Example |
-|----------|-------------|----------|---------|
-| `TG_TOKEN` | Telegram Bot Token | ✅ | `1234567890:ABCdef...` |
-| `TG_ADMIN_IDS` | Admin IDs (comma-separated) | ✅ | `123456789,987654321` |
-| `XRAY_USER` | X-UI panel login | ✅ | `admin` |
-| `XRAY_PASSWORD` | X-UI panel password | ✅ | `password123` |
-| `XRAY_API_URL` | X-UI panel API URL | ✅ | `http://server.com:54321/api` |
-| `XRAY_SUB_URL_PREFIX` | Subscription URL prefix | ❌ | `http://server.com:54321/sub` |
-| `LOG_LEVEL` | Logging level | ❌ | `info` |
+2. **Your Telegram ID**:
+   - Message @userinfobot in Telegram
+   - Send any message to get your ID
+
+3. **X-UI Panel Settings**:
+   - Ensure X-UI panel is running
+   - Use your admin credentials
+   - Replace `YOUR_SERVER_IP` with your actual server IP
 
 ---
 
@@ -310,31 +339,49 @@ Key logging points:
 
 ## 🔧 Docker
 
-### 📦 Docker Compose
+### 📦 Pre-built Docker Image
+
+The easiest way to run the bot is using the pre-built Docker image:
+
+```bash
+# Pull and run directly
+docker run -d \
+  --name xui-tg-go \
+  --restart unless-stopped \
+  -e TG_TOKEN="YOUR_BOT_TOKEN" \
+  -e TG_ADMIN_IDS="YOUR_TELEGRAM_ID" \
+  -e XRAY_USER="admin" \
+  -e XRAY_PASSWORD="your_password" \
+  -e XRAY_API_URL="http://localhost:54321/api" \
+  -e XRAY_SUB_URL_PREFIX="http://YOUR_SERVER_IP:54321/sub" \
+  -e LOG_LEVEL="info" \
+  -v $(pwd)/data:/root/data \
+  ghcr.io/d3kause/xui-tg-admin:latest
+```
+
+### 🔄 Updates
+
+```bash
+# Update to latest version
+docker-compose pull
+docker-compose up -d
+
+# View logs
+docker-compose logs -f
+```
+
+### 🛠️ Build from source
 
 ```yaml
 services:
   x-ui-tg-go:
-    build: .
+    build: .  # Build from local source
     container_name: x-ui-tg-go
     restart: unless-stopped
     environment:
-      - TG_TOKEN=${TG_TOKEN}
-      - TG_ADMIN_IDS=${TG_ADMIN_IDS}
-      - XRAY_USER=${XRAY_USER}
-      - XRAY_PASSWORD=${XRAY_PASSWORD}
-      - XRAY_API_URL=${XRAY_API_URL}
-      - XRAY_SUB_URL_PREFIX=${XRAY_SUB_URL_PREFIX}
-      - LOG_LEVEL=${LOG_LEVEL:-info}
-    volumes:
-      - ./data:/root/data
+      - TG_TOKEN=your_token
+      # ... other variables
 ```
-
-### 🔧 Dockerfile
-
-Multi-stage build for optimal image size:
-- Build stage: Go 1.24 Alpine
-- Production image: Alpine Linux with SSL certificates
 
 ---
 
@@ -377,6 +424,6 @@ This project is licensed under the MIT License. See the [LICENSE](LICENSE) file 
 
 **⭐ If you liked the project, give it a star!**
 
-[🚀 Start using](#quick-start) • [📖 Documentation](#usage) • [🐛 Report bug](https://github.com/yourusername/xui-tg-admin/issues)
+[🚀 Start using](#quick-start) • [📖 Documentation](#usage) • [🐛 Report bug](https://github.com/d3kause/xui-tg-admin/issues)
 
 </div>

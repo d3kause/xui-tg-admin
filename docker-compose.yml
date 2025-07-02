@@ -1,15 +1,15 @@
 services:
   x-ui-tg-go:
-    build: .
+    image: ghcr.io/d3kause/xui-tg-admin:latest
     container_name: x-ui-tg-go
     restart: unless-stopped
     environment:
-      - TG_TOKEN=${TG_TOKEN}
-      - TG_ADMIN_IDS=${TG_ADMIN_IDS}
-      - XRAY_USER=${XRAY_USER}
-      - XRAY_PASSWORD=${XRAY_PASSWORD}
-      - XRAY_API_URL=${XRAY_API_URL}
-      - XRAY_SUB_URL_PREFIX=${XRAY_SUB_URL_PREFIX}
-      - LOG_LEVEL=${LOG_LEVEL:-info}
+      - TG_TOKEN=1234567890:YOUR_BOT_TOKEN_FROM_BOTFATHER
+      - TG_ADMIN_IDS=123456789,987654321
+      - XRAY_USER=admin
+      - XRAY_PASSWORD=your_xui_panel_password
+      - XRAY_API_URL=http://localhost:54321/api
+      - XRAY_SUB_URL_PREFIX=http://YOUR_SERVER_IP:54321/sub
+      - LOG_LEVEL=info
     volumes:
       - ./data:/root/data
