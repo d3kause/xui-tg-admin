@@ -3,6 +3,7 @@ package helpers
 import (
 	"encoding/json"
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 	"xui-tg-admin/internal/constants"
@@ -240,12 +241,25 @@ func FormatCompactTrafficReport(inbounds []models.Inbound, onlineUsers []string)
 	var sb strings.Builder
 	sb.WriteString("<b>📊 Traffic Usage Report</b>\n\n")
 
+	// Convert to slice for sorting
+	var users []*UserTrafficSummary
+	for _, summary := range userSummary {
+		users = append(users, summary)
+	}
+
+	// Sort users by total traffic (descending)
+	sort.Slice(users, func(i, j int) bool {
+		return (users[i].TotalUp + users[i].TotalDown) > (users[j].TotalUp + users[j].TotalDown)
+	})
+
 	// Calculate totals
 	var grandTotalUp, grandTotalDown int64
 	activeCount := 0
 
-	// Format each user
-	for _, summary := range userSummary {
+	// Create formatted user lines
+	var userLines []string
+
+	for _, summary := range users {
 		grandTotalUp += summary.TotalUp
 		grandTotalDown += summary.TotalDown
 
@@ -259,45 +273,49 @@ func FormatCompactTrafficReport(inbounds []models.Inbound, onlineUsers []string)
 			statusIcon = "🟢"
 		}
 
+		// Extract clean username (remove everything after @ or _)
+		displayName := extractCleanUsername(summary.BaseUsername)
+
 		// Convert traffic to GB with 2 decimal places
 		downGB := float64(summary.TotalDown) / constants.BytesInGB
 		upGB := float64(summary.TotalUp) / constants.BytesInGB
 
-		// Extract clean username (remove everything after @ or _)
-		displayName := extractCleanUsername(summary.BaseUsername)
-
-		// Format user line
-		userLine := fmt.Sprintf("%s <b>%s</b> — ⬇ %.2f GB ⬆ %.2f GB", statusIcon, displayName, downGB, upGB)
-
-		// Add expiry and limit info in parentheses if needed
-		var infoItems []string
-
-		// Add expiry date if set
+		// Add expiry info if set
+		expiryInfo := ""
 		if summary.ExpiryTime > 0 {
 			expiryDate := time.Unix(summary.ExpiryTime/1000, 0)
-			infoItems = append(infoItems, fmt.Sprintf("until %s", expiryDate.Format("02.01.06")))
+			expiryInfo = fmt.Sprintf(" (until %s)", expiryDate.Format("02.01.06"))
 		}
 
-		// Note: TrafficLimitGb is always 0 (unlimited) in this system, so we don't show it
-		// If it was available, we would add: infoItems = append(infoItems, fmt.Sprintf("limit %d GB", limitGB))
-
-		if len(infoItems) > 0 {
-			userLine += fmt.Sprintf(" (%s)", strings.Join(infoItems, ", "))
+		userLine := UserLineData{
+			StatusIcon:  statusIcon,
+			DisplayName: displayName,
+			DownGB:      downGB,
+			UpGB:        upGB,
+			ExpiryInfo:  expiryInfo,
 		}
-
-		sb.WriteString(userLine + "\n")
+		userLines = append(userLines, formatUserLineAligned(userLine, 16))
 	}
+
+	// Add users section with proper alignment
+	sb.WriteString("<pre>")
+	for _, line := range userLines {
+		sb.WriteString(line + "\n")
+	}
+	sb.WriteString("</pre>\n")
 
 	// Add summary section
 	sb.WriteString("\n<b>📈 Summary</b>\n")
 	grandTotalDownGB := float64(grandTotalDown) / constants.BytesInGB
 	grandTotalUpGB := float64(grandTotalUp) / constants.BytesInGB
 
-	sb.WriteString(fmt.Sprintf("Total ⬇ %.2f GB ⬆ %.2f GB\n", grandTotalDownGB, grandTotalUpGB))
+	sb.WriteString("<pre>")
+	sb.WriteString(fmt.Sprintf("%-15s %8.2f GB ⬇ %7.2f GB ⬆\n", "Total", grandTotalDownGB, grandTotalUpGB))
+	sb.WriteString("─────────────────────────────\n")
 
 	// Add per-inbound breakdown
 	inboundTotals := make(map[string]*InboundTrafficStats)
-	for _, summary := range userSummary {
+	for _, summary := range users {
 		for inboundName, stats := range summary.InboundStats {
 			if inboundTotals[inboundName] == nil {
 				inboundTotals[inboundName] = &InboundTrafficStats{Down: 0, Up: 0}
@@ -307,11 +325,25 @@ func FormatCompactTrafficReport(inbounds []models.Inbound, onlineUsers []string)
 		}
 	}
 
-	for inboundName, stats := range inboundTotals {
+	// Sort inbound names for consistent output
+	var inboundNames []string
+	for name := range inboundTotals {
+		inboundNames = append(inboundNames, name)
+	}
+	sort.Strings(inboundNames)
+
+	for _, inboundName := range inboundNames {
+		stats := inboundTotals[inboundName]
 		downGB := float64(stats.Down) / constants.BytesInGB
 		upGB := float64(stats.Up) / constants.BytesInGB
-		sb.WriteString(fmt.Sprintf("Inbound %s: ⬇ %.2f GB ⬆ %.2f GB\n", inboundName, downGB, upGB))
+		// Limit inbound name to 15 chars for alignment
+		displayName := inboundName
+		if len(displayName) > 15 {
+			displayName = displayName[:12] + "..."
+		}
+		sb.WriteString(fmt.Sprintf("%-15s %8.2f GB ⬇%7.2f GB ⬆\n", displayName+":", downGB, upGB))
 	}
+	sb.WriteString("</pre>")
 
 	return sb.String()
 }
@@ -345,4 +377,29 @@ func extractCleanUsername(username string) string {
 	}
 
 	return username
+}
+
+// UserLineData represents data for formatting a user line
+type UserLineData struct {
+	StatusIcon  string
+	DisplayName string
+	DownGB      float64
+	UpGB        float64
+	ExpiryInfo  string
+}
+
+// formatUserLineAligned formats a user line with proper alignment
+func formatUserLineAligned(data UserLineData, nameWidth int) string {
+	displayName := data.DisplayName
+	if len(displayName) > nameWidth {
+		displayName = displayName[:nameWidth-3] + "..."
+	}
+
+	return fmt.Sprintf("%s %-*s %8.2f GB ⬇ %7.2f GB ⬆%s",
+		data.StatusIcon,
+		nameWidth,
+		displayName,
+		data.DownGB,
+		data.UpGB,
+		data.ExpiryInfo)
 }
