@@ -102,9 +102,6 @@ func FormatCompactTrafficReport(inbounds []models.Inbound, onlineUsers []string)
 		return "📭 <b>No Active Users</b>\n\nNo user traffic data available."
 	}
 
-	var sb strings.Builder
-	sb.WriteString("<b>📊 Traffic Usage Report</b>\n\n")
-
 	// Convert to slice for sorting
 	var users []*UserTrafficSummary
 	for _, summary := range userSummary {
@@ -118,18 +115,14 @@ func FormatCompactTrafficReport(inbounds []models.Inbound, onlineUsers []string)
 
 	// Calculate totals
 	var grandTotalUp, grandTotalDown int64
-	activeCount := 0
 
-	// Create formatted user lines
-	var userLines []string
+	// Prepare all report lines
+	var reportLines []TrafficReportLine
 
+	// Add user lines
 	for _, summary := range users {
 		grandTotalUp += summary.TotalUp
 		grandTotalDown += summary.TotalDown
-
-		if summary.Enable {
-			activeCount++
-		}
 
 		// Determine online status
 		statusIcon := "🔴"
@@ -151,31 +144,38 @@ func FormatCompactTrafficReport(inbounds []models.Inbound, onlineUsers []string)
 			expiryInfo = fmt.Sprintf(" (until %s)", expiryDate.Format("02.01.06"))
 		}
 
-		userLine := UserLineData{
+		reportLines = append(reportLines, TrafficReportLine{
 			StatusIcon:  statusIcon,
 			DisplayName: displayName,
 			DownGB:      downGB,
 			UpGB:        upGB,
-			ExpiryInfo:  expiryInfo,
-		}
-		userLines = append(userLines, formatUserLineAligned(userLine, 16))
+			ExtraInfo:   expiryInfo,
+			IsTotal:     false,
+		})
 	}
 
-	// Add users section with proper alignment
-	sb.WriteString("<pre>")
-	for _, line := range userLines {
-		sb.WriteString(line + "\n")
-	}
-	sb.WriteString("</pre>\n")
+	// Add separator line
+	reportLines = append(reportLines, TrafficReportLine{
+		StatusIcon:  "",
+		DisplayName: "────────────────",
+		DownGB:      0,
+		UpGB:        0,
+		ExtraInfo:   "",
+		IsSeparator: true,
+	})
 
-	// Add summary section
-	sb.WriteString("\n<b>📈 Summary</b>\n")
+	// Add grand total line
 	grandTotalDownGB := float64(grandTotalDown) / constants.BytesInGB
 	grandTotalUpGB := float64(grandTotalUp) / constants.BytesInGB
 
-	sb.WriteString("<pre>")
-	sb.WriteString(fmt.Sprintf("%-15s %8.2f GB ⬇ %7.2f GB ⬆\n", "Total", grandTotalDownGB, grandTotalUpGB))
-	sb.WriteString("─────────────────────────────\n")
+	reportLines = append(reportLines, TrafficReportLine{
+		StatusIcon:  "📊",
+		DisplayName: "Total",
+		DownGB:      grandTotalDownGB,
+		UpGB:        grandTotalUpGB,
+		ExtraInfo:   "",
+		IsTotal:     true,
+	})
 
 	// Add per-inbound breakdown
 	inboundTotals := make(map[string]*InboundTrafficStats)
@@ -196,20 +196,84 @@ func FormatCompactTrafficReport(inbounds []models.Inbound, onlineUsers []string)
 	}
 	sort.Strings(inboundNames)
 
+	// Add inbound breakdown lines
 	for _, inboundName := range inboundNames {
 		stats := inboundTotals[inboundName]
 		downGB := float64(stats.Down) / constants.BytesInGB
 		upGB := float64(stats.Up) / constants.BytesInGB
-		// Limit inbound name to 15 chars for alignment
-		displayName := inboundName
-		if len(displayName) > 15 {
-			displayName = displayName[:12] + "..."
-		}
-		sb.WriteString(fmt.Sprintf("%-15s %8.2f GB ⬇%7.2f GB ⬆\n", displayName+":", downGB, upGB))
+
+		reportLines = append(reportLines, TrafficReportLine{
+			StatusIcon:  "📡",
+			DisplayName: inboundName,
+			DownGB:      downGB,
+			UpGB:        upGB,
+			ExtraInfo:   "",
+			IsInbound:   true,
+		})
 	}
+
+	// Format all lines with consistent alignment
+	var sb strings.Builder
+	sb.WriteString("<b>📊 Traffic Usage Report</b>\n\n")
+	sb.WriteString("<pre>")
+
+	for _, line := range reportLines {
+		sb.WriteString(formatTrafficReportLine(line) + "\n")
+	}
+
 	sb.WriteString("</pre>")
 
 	return sb.String()
+}
+
+// TrafficReportLine represents a single line in the traffic report
+type TrafficReportLine struct {
+	StatusIcon  string  // Status icon (🟢, 🔴, 📊, 📡, etc.)
+	DisplayName string  // Name to display
+	DownGB      float64 // Download traffic in GB
+	UpGB        float64 // Upload traffic in GB
+	ExtraInfo   string  // Additional info (expiry, etc.)
+	IsTotal     bool    // Whether this is a total line
+	IsInbound   bool    // Whether this is an inbound line
+	IsSeparator bool    // Whether this is a separator line
+}
+
+// formatTrafficReportLine formats a single line of the traffic report with consistent alignment
+func formatTrafficReportLine(line TrafficReportLine) string {
+	const nameWidth = 16
+	const trafficWidth = 8
+
+	// Handle separator line
+	if line.IsSeparator {
+		return line.DisplayName + "─────────────────"
+	}
+
+	// Prepare display name with proper width
+	displayName := line.DisplayName
+	if len(displayName) > nameWidth {
+		displayName = displayName[:nameWidth-3] + "..."
+	}
+
+	// Format traffic values
+	var trafficStr string
+	if line.IsTotal || line.IsInbound {
+		// For totals and inbounds, show traffic in bold-like format
+		trafficStr = fmt.Sprintf("%*.2f GB ⬇ %*.2f GB ⬆",
+			trafficWidth, line.DownGB, trafficWidth-1, line.UpGB)
+	} else {
+		// For regular users, standard format
+		trafficStr = fmt.Sprintf("%*.2f GB ⬇ %*.2f GB ⬆",
+			trafficWidth, line.DownGB, trafficWidth-1, line.UpGB)
+	}
+
+	// Combine all parts
+	if line.StatusIcon != "" {
+		return fmt.Sprintf("%s %-*s %s%s",
+			line.StatusIcon, nameWidth, displayName, trafficStr, line.ExtraInfo)
+	} else {
+		return fmt.Sprintf("  %-*s %s%s",
+			nameWidth, displayName, trafficStr, line.ExtraInfo)
+	}
 }
 
 // UserTrafficSummary represents aggregated traffic data for a user
@@ -241,29 +305,4 @@ func extractCleanUsername(username string) string {
 	}
 
 	return username
-}
-
-// UserLineData represents data for formatting a user line
-type UserLineData struct {
-	StatusIcon  string
-	DisplayName string
-	DownGB      float64
-	UpGB        float64
-	ExpiryInfo  string
-}
-
-// formatUserLineAligned formats a user line with proper alignment
-func formatUserLineAligned(data UserLineData, nameWidth int) string {
-	displayName := data.DisplayName
-	if len(displayName) > nameWidth {
-		displayName = displayName[:nameWidth-3] + "..."
-	}
-
-	return fmt.Sprintf("%s %-*s %8.2f GB ⬇ %7.2f GB ⬆%s",
-		data.StatusIcon,
-		nameWidth,
-		displayName,
-		data.DownGB,
-		data.UpGB,
-		data.ExpiryInfo)
 }
